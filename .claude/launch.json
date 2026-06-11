@@ -1,0 +1,26 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "nexus-ai (frontend)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@workspace/nexus-ai", "run", "dev"],
+      "port": 22706
+    },
+    {
+      "name": "api-server",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@workspace/api-server", "run", "dev"],
+      "port": 8080
+    },
+    {
+      "name": "mockup-sandbox (design scratch app)",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "PORT=22707 BASE_PATH=/ pnpm --filter @workspace/mockup-sandbox run dev"
+      ],
+      "port": 22707
+    }
+  ]
+}

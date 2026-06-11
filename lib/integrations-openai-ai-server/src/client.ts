@@ -1,11 +1,4 @@
 import OpenAI from "openai";
+import { resolveOpenAIConfig } from "./env";
 
-if (!process.env.OPENAI_API_KEY) {
-  throw new Error(
-    "OPENAI_API_KEY must be set. Add your OpenAI API key to Replit Secrets.",
-  );
-}
-
-export const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+export const openai = new OpenAI(resolveOpenAIConfig());
