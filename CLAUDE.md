@@ -18,7 +18,7 @@ A web-based AI business orchestration dashboard for Jay — a central command ce
 Secrets live in the repo-root `.env` (gitignored; see `.env.example`):
 
 - `DATABASE_URL` — local default `postgres://nxs:nxs@localhost:5432/nxs` (docker container `nxs-postgres`)
-- `OPENAI_API_KEY` — required for orchestrator + department agents; the server boots without it but LLM calls fail
+- `ANTHROPIC_API_KEY` — required for orchestrator + department agents (claude-opus-4-6); the server boots without it but LLM calls fail
 - `NXS_ACCESS_TOKEN` — optional; when set, all `/api` routes (except `/api/healthz`) require `Authorization: Bearer <token>` and the frontend shows an unlock screen
 
 The api-server loads the root `.env` via `node --env-file-if-exists`; drizzle-kit loads it from `lib/db/drizzle.config.ts`.
@@ -46,7 +46,7 @@ The api-server loads the root `.env` via `node --env-file-if-exists`; drizzle-ki
 ## Architecture decisions
 
 - Agent definitions (CEO Orchestrator, Sales, Marketing, Research, Finance) live in `src/lib/orchestrator/agents.ts` (single source of truth, incl. per-agent system prompts) — they always exist and are never user-created
-- Chat is a real multi-agent pipeline: a gpt-4o-mini router decides which department agents to dispatch (0–3), each dispatched agent runs its own gpt-4o call in parallel and is logged to `agent_tasks` + `agent_logs`, then the orchestrator streams a CoS synthesis that integrates their reports. `agentActions` on chat messages reflect these real runs
+- Chat is a real multi-agent pipeline on the Claude API (`@anthropic-ai/sdk`, `lib/integrations-anthropic-server`): a low-effort claude-opus-4-6 router decides which department agents to dispatch (0–3), each dispatched agent runs its own claude-opus-4-6 call with adaptive thinking in parallel and is logged to `agent_tasks` + `agent_logs`, then the orchestrator streams a CoS synthesis that integrates their reports. The shared business briefing leads every system prompt with `cache_control: ephemeral`, so agent calls and synthesis share one cached prefix (~90% cheaper repeated context). `agentActions` on chat messages reflect these real runs
 - Deterministic rule guards (no cold outreach, goal-spread challenge) fire in `src/lib/orchestrator/guards.ts` before any LLM call
 - Lead qualification workflow: incoming → Sales Agent qualifies → routes to Sales (qualified) or Marketing (nurture) or logged as rejected
 - The Memory system is the core moat: persistent, categorized, searchable knowledge base shared across all agents. `priority`/`importance`/`confidence`/`status` are typed enums in the Drizzle schema and enforced at the API boundary via `insertMemoryEntrySchema`

@@ -1,6 +1,6 @@
 import { db, agentTasksTable, agentLogsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { anthropic, CLAUDE_MODEL, messageText } from "@workspace/integrations-anthropic-server";
 import { logger } from "../logger";
 import { DEPARTMENT_AGENTS, getAgent, type AgentDefinition } from "./agents";
 import type { OrchestratorContext } from "./context";
@@ -38,21 +38,25 @@ Dispatch an agent only when its department's perspective would materially improv
 
 Each dispatched task must be one concrete, self-contained instruction phrased for that agent (e.g. "Assess which open opportunity closes the most of the revenue gap and what its next step is").
 
-Respond with JSON only: {"dispatches": [{"agent": "<department id>", "task": "<instruction>"}]}`;
+Respond with JSON only — a single object, no markdown fences, no other text: {"dispatches": [{"agent": "<department id>", "task": "<instruction>"}]}`;
+
+/** Strip markdown code fences if the model wrapped its JSON in them. */
+function extractJson(text: string): string {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  return (fenced ? fenced[1] : text).trim();
+}
 
 export async function planDispatch(userMessage: string): Promise<Dispatch[]> {
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_tokens: 300,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: ROUTER_PROMPT },
-        { role: "user", content: userMessage },
-      ],
+    const response = await anthropic.messages.create({
+      model: CLAUDE_MODEL,
+      max_tokens: 1000,
+      output_config: { effort: "low" },
+      system: ROUTER_PROMPT,
+      messages: [{ role: "user", content: userMessage }],
     });
 
-    const raw = completion.choices[0]?.message?.content ?? "{}";
+    const raw = extractJson(messageText(response)) || "{}";
     const parsed = JSON.parse(raw) as { dispatches?: Array<{ agent?: string; task?: string }> };
     const validIds = new Set(DEPARTMENT_AGENTS.map((a) => a.id));
 
@@ -83,11 +87,17 @@ async function runDepartmentAgent(
     .returning();
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      max_tokens: 500,
+    const response = await anthropic.messages.create({
+      model: CLAUDE_MODEL,
+      max_tokens: 4000,
+      thinking: { type: "adaptive" },
+      // The shared briefing leads so all agent calls in a turn share one
+      // cached prompt prefix; the persona block varies per agent.
+      system: [
+        { type: "text", text: briefing, cache_control: { type: "ephemeral" } },
+        { type: "text", text: agent.systemPrompt },
+      ],
       messages: [
-        { role: "system", content: `${agent.systemPrompt}\n\n${briefing}` },
         {
           role: "user",
           content: `Jay asked: "${userMessage}"\n\nYour task: ${dispatch.task}`,
@@ -95,7 +105,7 @@ async function runDepartmentAgent(
       ],
     });
 
-    const findings = completion.choices[0]?.message?.content?.trim();
+    const findings = messageText(response).trim();
     if (!findings) throw new Error("Empty agent response");
 
     await Promise.all([

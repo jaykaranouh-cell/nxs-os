@@ -7,7 +7,7 @@ import {
   leadsTable,
 } from "@workspace/db";
 import { desc, eq, inArray } from "drizzle-orm";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { anthropic, CLAUDE_MODEL, messageText } from "@workspace/integrations-anthropic-server";
 
 const router = Router();
 
@@ -204,15 +204,15 @@ Constraints:
 - If data is thin, be honest. Do not pad with generic advice.
 - Be a Chief of Staff, not a report generator. Direct, specific, decisive.`;
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages: [{ role: "user", content: prompt }],
+  const response = await anthropic.messages.create({
+    model: CLAUDE_MODEL,
+    max_tokens: 4000,
     temperature: 0.35,
-    max_tokens: 1400,
-    response_format: { type: "json_object" },
+    system: "Respond with a single valid JSON object only — no markdown fences, no surrounding text.",
+    messages: [{ role: "user", content: prompt }],
   });
 
-  const raw = completion.choices[0]?.message?.content ?? "{}";
+  const raw = messageText(response).replace(/^```(?:json)?\s*|```\s*$/g, "").trim() || "{}";
   let brief: Record<string, unknown>;
   try {
     brief = JSON.parse(raw) as Record<string, unknown>;

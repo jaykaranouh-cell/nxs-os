@@ -177,15 +177,25 @@ export function buildAgentBriefing(ctx: OrchestratorContext): string {
   return buildContextSections(ctx).join("\n\n");
 }
 
-/** Full system prompt for the orchestrator's final synthesis call. */
-export function buildSystemPrompt(ctx: OrchestratorContext, runs: AgentRun[] = []): string {
+/** System prompt block shape compatible with Anthropic.TextBlockParam. */
+export interface SystemBlock {
+  type: "text";
+  text: string;
+  cache_control?: { type: "ephemeral" };
+}
+
+/**
+ * System blocks for the orchestrator's final synthesis call. The shared
+ * business briefing leads (and is cache-marked) so it forms a common cached
+ * prefix with the department agent calls; the identity, agent reports, and
+ * response format follow in a separate block.
+ */
+export function buildSystemBlocks(ctx: OrchestratorContext, runs: AgentRun[] = []): SystemBlock[] {
   const sections: string[] = [];
 
   sections.push(
-    `You are the NXS Orchestrator — Jay's personal AI Chief of Staff. You are direct, sharp, and strategic. You know Jay's business and life deeply because you have access to his real data loaded below. Never be vague. Always be specific, naming real items from the data.`
+    `You are the NXS Orchestrator — Jay's personal AI Chief of Staff. You are direct, sharp, and strategic. You know Jay's business and life deeply because you have access to his real data loaded above. Never be vague. Always be specific, naming real items from the data.`
   );
-
-  sections.push(...buildContextSections(ctx));
 
   if (runs.length) {
     sections.push(
@@ -212,5 +222,8 @@ Rules:
 - Keep total response under 300 words.
 - Do not add any text before **Situation:** or after **Next Move:**.`);
 
-  return sections.join("\n\n");
+  return [
+    { type: "text", text: buildAgentBriefing(ctx), cache_control: { type: "ephemeral" } },
+    { type: "text", text: sections.join("\n\n") },
+  ];
 }

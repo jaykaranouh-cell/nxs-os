@@ -2,11 +2,11 @@ import { Router, type Response } from "express";
 import { db, chatMessagesTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
 import { SendChatMessageBody } from "@workspace/api-zod";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { anthropic, CLAUDE_MODEL, messageText } from "@workspace/integrations-anthropic-server";
 import {
   loadContext,
   checkRuleViolations,
-  buildSystemPrompt,
+  buildSystemBlocks,
   planDispatch,
   runDispatches,
   toAgentActions,
@@ -55,11 +55,10 @@ async function dispatchAgents(content: string, ctx: OrchestratorContext): Promis
 }
 
 function buildMessages(
-  systemPrompt: string,
   history: ChatHistory,
   content: string
-): Array<{ role: "system" | "user" | "assistant"; content: string }> {
-  return [{ role: "system", content: systemPrompt }, ...history, { role: "user", content }];
+): Array<{ role: "user" | "assistant"; content: string }> {
+  return [...history, { role: "user", content }];
 }
 
 async function saveOrchestratorMessage(content: string, agentActions: AgentAction[]) {
@@ -104,14 +103,22 @@ router.post("/chat/messages", async (req, res) => {
     response = violation;
     agentActions = violationActions();
   } else {
-    const runs = await dispatchAgents(content, ctx);
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      max_tokens: 8192,
-      messages: buildMessages(buildSystemPrompt(ctx, runs), history, content),
-    });
-    response = completion.choices[0]?.message?.content ?? FALLBACK_RESPONSE;
-    agentActions = toAgentActions(runs);
+    try {
+      const runs = await dispatchAgents(content, ctx);
+      const message = await anthropic.messages.create({
+        model: CLAUDE_MODEL,
+        max_tokens: 16000,
+        thinking: { type: "adaptive" },
+        system: buildSystemBlocks(ctx, runs),
+        messages: buildMessages(history, content),
+      });
+      response = messageText(message) || FALLBACK_RESPONSE;
+      agentActions = toAgentActions(runs);
+    } catch (err) {
+      req.log.error(err, "Chat completion error");
+      response = FALLBACK_RESPONSE;
+      agentActions = [];
+    }
   }
 
   const orchMsg = await saveOrchestratorMessage(response, agentActions);
@@ -167,19 +174,19 @@ router.post("/chat/stream", async (req, res) => {
     const runs = await runDispatches(dispatches, ctx, content);
     const actions = toAgentActions(runs);
 
-    const stream = await openai.chat.completions.create({
-      model: "gpt-4o",
-      max_tokens: 8192,
-      messages: buildMessages(buildSystemPrompt(ctx, runs), history, content),
-      stream: true,
+    const stream = anthropic.messages.stream({
+      model: CLAUDE_MODEL,
+      max_tokens: 16000,
+      thinking: { type: "adaptive" },
+      system: buildSystemBlocks(ctx, runs),
+      messages: buildMessages(history, content),
     });
 
     let fullResponse = "";
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta?.content;
-      if (delta) {
-        fullResponse += delta;
-        sendEvent(res, { content: delta });
+    for await (const event of stream) {
+      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+        fullResponse += event.delta.text;
+        sendEvent(res, { content: event.delta.text });
       }
     }
 
