@@ -1,0 +1,2065 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: Nexus AI Business Orchestration API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: leads
+    description: Lead management and qualification
+  - name: agents
+    description: Department agent status, tasks, and logs
+  - name: memory
+    description: Shared company memory entries — the core intelligence layer
+  - name: chat
+    description: CEO Orchestrator chat messages
+  - name: ideas
+    description: Proactive agent ideas
+  - name: reports
+    description: Business metrics and reporting
+  - name: decisions
+    description: Key business decisions log
+  - name: system-context
+    description: Strategic Brain — persistent context for the Orchestrator
+  - name: opportunities
+    description: Opportunity Engine — tracked business opportunities
+  - name: daily-plan
+    description: Daily Execution Plan — AI-generated mission, actions, risks, and priorities for the day
+  - name: morning-brief
+    description: Morning Brief — AI Chief of Staff briefing generated from all live data sources
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  # ─── LEADS ───────────────────────────────────────────────────────────────────
+  /leads:
+    get:
+      operationId: listLeads
+      tags: [leads]
+      summary: List all leads
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: stage
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of leads
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Lead"
+    post:
+      operationId: createLead
+      tags: [leads]
+      summary: Create a new lead
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeadInput"
+      responses:
+        "201":
+          description: Created lead
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lead"
+
+  /leads/{id}:
+    get:
+      operationId: getLead
+      tags: [leads]
+      summary: Get a lead by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Lead
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lead"
+    patch:
+      operationId: updateLead
+      tags: [leads]
+      summary: Update a lead
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeadUpdate"
+      responses:
+        "200":
+          description: Updated lead
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lead"
+
+  /leads/{id}/qualify:
+    post:
+      operationId: qualifyLead
+      tags: [leads]
+      summary: Qualify a lead and route to appropriate agent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeadQualification"
+      responses:
+        "200":
+          description: Qualification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QualificationResult"
+
+  /leads/stats/summary:
+    get:
+      operationId: getLeadStats
+      tags: [leads]
+      summary: Get lead statistics
+      responses:
+        "200":
+          description: Lead stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeadStats"
+
+  # ─── AGENTS ──────────────────────────────────────────────────────────────────
+  /agents:
+    get:
+      operationId: listAgents
+      tags: [agents]
+      summary: List all agents with live status
+      responses:
+        "200":
+          description: Agents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Agent"
+
+  /agents/activity/recent:
+    get:
+      operationId: getRecentAgentActivity
+      tags: [agents]
+      summary: Get recent agent activity logs
+      responses:
+        "200":
+          description: Recent activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgentLog"
+
+  /agents/{agentId}:
+    get:
+      operationId: getAgent
+      tags: [agents]
+      summary: Get a specific agent with task details
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Agent"
+
+  /agents/{agentId}/tasks:
+    get:
+      operationId: listAgentTasks
+      tags: [agents]
+      summary: List tasks for an agent
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgentTask"
+    post:
+      operationId: createAgentTask
+      tags: [agents]
+      summary: Create a task for an agent
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentTaskInput"
+      responses:
+        "201":
+          description: Created task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentTask"
+
+  /agents/{agentId}/tasks/{taskId}:
+    patch:
+      operationId: updateAgentTask
+      tags: [agents]
+      summary: Update an agent task
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentTaskUpdate"
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentTask"
+
+  /agents/{agentId}/logs:
+    get:
+      operationId: getAgentLogs
+      tags: [agents]
+      summary: Get logs for an agent
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgentLog"
+
+  # ─── MEMORY ──────────────────────────────────────────────────────────────────
+  /memory:
+    get:
+      operationId: listMemoryEntries
+      tags: [memory]
+      summary: List memory entries with optional filtering
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: priority
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Memory entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MemoryEntry"
+    post:
+      operationId: createMemoryEntry
+      tags: [memory]
+      summary: Create a new memory entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemoryEntryInput"
+      responses:
+        "201":
+          description: Created memory entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryEntry"
+
+  /memory/briefing:
+    get:
+      operationId: getMemoryBriefing
+      tags: [memory]
+      summary: Get AI-synthesized morning executive briefing from memory
+      responses:
+        "200":
+          description: Morning briefing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryBriefing"
+
+  /memory/agent-status:
+    get:
+      operationId: getMemoryAgentStatus
+      tags: [memory]
+      summary: Get Memory Agent operational status
+      responses:
+        "200":
+          description: Memory Agent status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryAgentStatus"
+
+  /memory/categories/summary:
+    get:
+      operationId: getMemoryCategorySummary
+      tags: [memory]
+      summary: Get count of memory entries by category
+      responses:
+        "200":
+          description: Category summary
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CategoryCount"
+
+  /memory/connections:
+    post:
+      operationId: createMemoryConnection
+      tags: [memory]
+      summary: Connect two memory entries
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemoryConnectionInput"
+      responses:
+        "201":
+          description: Created connection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryConnection"
+
+  /memory/{id}:
+    get:
+      operationId: getMemoryEntry
+      tags: [memory]
+      summary: Get a memory entry by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Memory entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryEntry"
+    patch:
+      operationId: updateMemoryEntry
+      tags: [memory]
+      summary: Update a memory entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemoryEntryUpdate"
+      responses:
+        "200":
+          description: Updated memory entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryEntry"
+    delete:
+      operationId: deleteMemoryEntry
+      tags: [memory]
+      summary: Delete a memory entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /memory/{id}/connections:
+    get:
+      operationId: getMemoryConnections
+      tags: [memory]
+      summary: Get all connections for a memory entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Connected memory entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConnectedMemory"
+
+  # ─── CHAT ────────────────────────────────────────────────────────────────────
+  /chat/messages:
+    get:
+      operationId: listChatMessages
+      tags: [chat]
+      summary: List orchestrator chat history
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChatMessage"
+    post:
+      operationId: sendChatMessage
+      tags: [chat]
+      summary: Send a message to the CEO Orchestrator
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatMessageInput"
+      responses:
+        "201":
+          description: Message sent and orchestrator response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResponse"
+
+  # ─── IDEAS ───────────────────────────────────────────────────────────────────
+  /ideas:
+    get:
+      operationId: listIdeas
+      tags: [ideas]
+      summary: List proactive agent ideas
+      parameters:
+        - name: agentId
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Ideas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Idea"
+    post:
+      operationId: createIdea
+      tags: [ideas]
+      summary: Submit a new agent idea
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdeaInput"
+      responses:
+        "201":
+          description: Created idea
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Idea"
+
+  /ideas/{id}:
+    patch:
+      operationId: updateIdea
+      tags: [ideas]
+      summary: Update idea status (approve/reject/implement)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdeaUpdate"
+      responses:
+        "200":
+          description: Updated idea
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Idea"
+
+  /ideas/pending/count:
+    get:
+      operationId: getPendingIdeasCount
+      tags: [ideas]
+      summary: Get count of pending ideas
+      responses:
+        "200":
+          description: Count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PendingCount"
+
+  # ─── REPORTS ─────────────────────────────────────────────────────────────────
+  /reports/metrics:
+    get:
+      operationId: getDashboardMetrics
+      tags: [reports]
+      summary: Get key business metrics for dashboard
+      responses:
+        "200":
+          description: Metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardMetrics"
+
+  /reports/pipeline:
+    get:
+      operationId: getPipelineReport
+      tags: [reports]
+      summary: Get sales pipeline report
+      responses:
+        "200":
+          description: Pipeline report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineReport"
+
+  /reports/finance:
+    get:
+      operationId: getFinanceReport
+      tags: [reports]
+      summary: Get finance summary report
+      responses:
+        "200":
+          description: Finance report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceReport"
+
+  # ─── DECISIONS ───────────────────────────────────────────────────────────────
+  /decisions:
+    get:
+      operationId: listDecisions
+      tags: [decisions]
+      summary: List key business decisions
+      responses:
+        "200":
+          description: Decisions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Decision"
+    post:
+      operationId: createDecision
+      tags: [decisions]
+      summary: Log a key business decision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DecisionInput"
+      responses:
+        "201":
+          description: Created decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Decision"
+
+  # ─── SYSTEM CONTEXT (Strategic Brain) ───────────────────────────────────────
+  /system-context:
+    get:
+      operationId: getSystemContext
+      tags: [system-context]
+      summary: Get the full Strategic Brain context
+      responses:
+        "200":
+          description: System context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemContext"
+    put:
+      operationId: upsertSystemContext
+      tags: [system-context]
+      summary: Save Strategic Brain data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SystemContextInput"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemContext"
+
+  # ─── SETUP CONTEXT ────────────────────────────────────────────────────────────
+  /setup-context:
+    get:
+      operationId: getSetupContext
+      tags: [system-context]
+      summary: Get all business context setup sections with completion status
+      responses:
+        "200":
+          description: Setup context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SetupContext"
+
+  /setup-context/{section}:
+    put:
+      operationId: updateSetupSection
+      tags: [system-context]
+      summary: Update a specific setup section
+      parameters:
+        - name: section
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetupSectionData"
+      responses:
+        "200":
+          description: Section saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SetupSectionResponse"
+
+  # ─── OPPORTUNITIES ────────────────────────────────────────────────────────────
+  /opportunities:
+    get:
+      operationId: listOpportunities
+      tags: [opportunities]
+      summary: List all tracked opportunities
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: priority
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Opportunities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OpportunityItem"
+    post:
+      operationId: createOpportunity
+      tags: [opportunities]
+      summary: Create a new opportunity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpportunityInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpportunityItem"
+
+  /opportunities/{id}:
+    patch:
+      operationId: updateOpportunity
+      tags: [opportunities]
+      summary: Update an opportunity (status, notes, priority)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpportunityUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpportunityItem"
+    delete:
+      operationId: deleteOpportunity
+      tags: [opportunities]
+      summary: Delete an opportunity
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── DAILY EXECUTION PLAN ────────────────────────────────────────────────────
+  /daily-plan:
+    get:
+      operationId: getDailyPlan
+      tags: [daily-plan]
+      summary: Generate today's AI-driven execution plan from all memory, goals, risks, and opportunities
+      responses:
+        "200":
+          description: Daily execution plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyPlan"
+
+  /morning-brief:
+    get:
+      operationId: getMorningBrief
+      tags: [morning-brief]
+      summary: Get the AI Chief of Staff morning brief — generated from all live data sources, cached daily
+      responses:
+        "200":
+          description: Morning brief
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MorningBrief"
+
+  /morning-brief/refresh:
+    post:
+      operationId: refreshMorningBrief
+      tags: [morning-brief]
+      summary: Force-regenerate the morning brief from current data
+      responses:
+        "200":
+          description: Freshly generated morning brief
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MorningBrief"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    # ─── LEAD SCHEMAS ─────────────────────────────────────────────────────────
+    Lead:
+      type: object
+      required: [id, name, company, email, status, stage, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        company:
+          type: string
+        email:
+          type: string
+        phone:
+          type: ["string", "null"]
+        source:
+          type: ["string", "null"]
+        status:
+          type: string
+          description: "new | qualified | nurture | rejected | closed"
+        stage:
+          type: string
+          description: "incoming | sales_review | marketing_follow_up | proposal | negotiation | won | lost"
+        qualificationScore:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+        rejectionReason:
+          type: ["string", "null"]
+        assignedAgentId:
+          type: ["string", "null"]
+        nextAction:
+          type: ["string", "null"]
+        estimatedValue:
+          type: ["number", "null"]
+        industry:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: ["string", "null"]
+
+    LeadInput:
+      type: object
+      required: [name, company, email]
+      properties:
+        name:
+          type: string
+        company:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        source:
+          type: string
+        notes:
+          type: string
+        estimatedValue:
+          type: number
+        industry:
+          type: string
+
+    LeadUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        company:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        status:
+          type: string
+        stage:
+          type: string
+        notes:
+          type: string
+        nextAction:
+          type: string
+        estimatedValue:
+          type: number
+        assignedAgentId:
+          type: string
+
+    LeadQualification:
+      type: object
+      required: [classification]
+      properties:
+        classification:
+          type: string
+          description: "qualified | nurture | rejected"
+        qualificationScore:
+          type: integer
+        rejectionReason:
+          type: string
+        nextAction:
+          type: string
+        notes:
+          type: string
+
+    QualificationResult:
+      type: object
+      required: [lead, recommendedActions]
+      properties:
+        lead:
+          $ref: "#/components/schemas/Lead"
+        recommendedActions:
+          type: array
+          items:
+            type: string
+        routedTo:
+          type: ["string", "null"]
+
+    LeadStats:
+      type: object
+      required: [total, qualified, nurture, rejected, new, closedWon]
+      properties:
+        total:
+          type: integer
+        qualified:
+          type: integer
+        nurture:
+          type: integer
+        rejected:
+          type: integer
+        new:
+          type: integer
+        closedWon:
+          type: integer
+        totalPipelineValue:
+          type: number
+
+    # ─── AGENT SCHEMAS ────────────────────────────────────────────────────────
+    Agent:
+      type: object
+      required: [id, name, department, status, activeTasks]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        department:
+          type: string
+          description: "orchestrator | marketing | sales | research | finance"
+        status:
+          type: string
+          description: "active | idle | busy | standby"
+        activeTasks:
+          type: integer
+        currentTask:
+          type: ["string", "null"]
+        lastActive:
+          type: ["string", "null"]
+        description:
+          type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+
+    AgentTask:
+      type: object
+      required: [id, agentId, title, status, priority, createdAt]
+      properties:
+        id:
+          type: integer
+        agentId:
+          type: string
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+          description: "pending | in_progress | completed | blocked"
+        priority:
+          type: string
+          description: "low | medium | high | urgent"
+        relatedLeadId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+        completedAt:
+          type: ["string", "null"]
+
+    AgentTaskInput:
+      type: object
+      required: [title, priority]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        priority:
+          type: string
+        relatedLeadId:
+          type: integer
+
+    AgentTaskUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        priority:
+          type: string
+
+    AgentLog:
+      type: object
+      required: [id, agentId, agentName, action, timestamp]
+      properties:
+        id:
+          type: integer
+        agentId:
+          type: string
+        agentName:
+          type: string
+        action:
+          type: string
+        details:
+          type: ["string", "null"]
+        relatedLeadId:
+          type: ["integer", "null"]
+        relatedLeadName:
+          type: ["string", "null"]
+        timestamp:
+          type: string
+
+    # ─── MEMORY SCHEMAS ───────────────────────────────────────────────────────
+    MemoryEntry:
+      type: object
+      required: [id, title, content, category, priority, status, source, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+          description: Primary content / short summary
+        summary:
+          type: ["string", "null"]
+          description: One-line executive summary
+        detailedNotes:
+          type: ["string", "null"]
+          description: Long-form detailed notes
+        category:
+          type: string
+          description: "decisions | conversations | clients | projects | sops | goals | lessons_learned | ideas | risks | leads | campaigns | finances | health | wealth | life_context | general"
+        tags:
+          type: ["string", "null"]
+        importance:
+          type: string
+          description: "low | medium | high | critical"
+        priority:
+          type: string
+          description: "low | medium | high | critical"
+        confidence:
+          type: string
+          description: "low | medium | high"
+        status:
+          type: string
+          description: "active | archived | needs_review | connected"
+        source:
+          type: string
+          description: "manual | chat | email | crm | calendar | import"
+        relatedPeople:
+          type: ["string", "null"]
+          description: Comma-separated list of related people
+        relatedCompanies:
+          type: ["string", "null"]
+          description: Comma-separated list of related companies
+        linkedProjects:
+          type: ["string", "null"]
+          description: Comma-separated list of linked projects
+        nextAction:
+          type: ["string", "null"]
+        createdBy:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: ["string", "null"]
+        reviewedAt:
+          type: ["string", "null"]
+
+    MemoryEntryInput:
+      type: object
+      required: [title, content, category]
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        summary:
+          type: string
+        detailedNotes:
+          type: string
+        category:
+          type: string
+        tags:
+          type: string
+        importance:
+          type: string
+        priority:
+          type: string
+        confidence:
+          type: string
+        status:
+          type: string
+        source:
+          type: string
+        relatedPeople:
+          type: string
+        relatedCompanies:
+          type: string
+        linkedProjects:
+          type: string
+        nextAction:
+          type: string
+        createdBy:
+          type: string
+
+    MemoryEntryUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        summary:
+          type: string
+        detailedNotes:
+          type: string
+        category:
+          type: string
+        tags:
+          type: string
+        importance:
+          type: string
+        priority:
+          type: string
+        confidence:
+          type: string
+        status:
+          type: string
+        source:
+          type: string
+        relatedPeople:
+          type: string
+        relatedCompanies:
+          type: string
+        linkedProjects:
+          type: string
+        nextAction:
+          type: string
+
+    MemoryBriefing:
+      type: object
+      required: [generatedAt, whatHappened, whatMatters, atRisk, opportunities, topActions, totalMemories, recentCount, highPriorityCount]
+      properties:
+        generatedAt:
+          type: string
+        whatHappened:
+          type: array
+          items:
+            $ref: "#/components/schemas/BriefingItem"
+        whatMatters:
+          type: array
+          items:
+            $ref: "#/components/schemas/BriefingItem"
+        atRisk:
+          type: array
+          items:
+            $ref: "#/components/schemas/BriefingItem"
+        opportunities:
+          type: array
+          items:
+            $ref: "#/components/schemas/BriefingItem"
+        topActions:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecommendedAction"
+        totalMemories:
+          type: integer
+        recentCount:
+          type: integer
+        highPriorityCount:
+          type: integer
+
+    BriefingItem:
+      type: object
+      required: [id, title, category, summary]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        category:
+          type: string
+        summary:
+          type: string
+        priority:
+          type: string
+        nextAction:
+          type: string
+
+    RecommendedAction:
+      type: object
+      required: [action, rationale, source]
+      properties:
+        action:
+          type: string
+        rationale:
+          type: string
+        source:
+          type: string
+        memoryId:
+          type: ["integer", "null"]
+
+    MemoryAgentStatus:
+      type: object
+      required: [status, totalMemories, highPriorityCount, staleCount, recentlyAdded, suggestedConnections]
+      properties:
+        status:
+          type: string
+          description: "active | idle | processing"
+        totalMemories:
+          type: integer
+        highPriorityCount:
+          type: integer
+        staleCount:
+          type: integer
+        recentlyAdded:
+          type: integer
+        suggestedConnections:
+          type: array
+          items:
+            $ref: "#/components/schemas/SuggestedConnection"
+        lastActivity:
+          type: string
+
+    SuggestedConnection:
+      type: object
+      required: [fromId, fromTitle, toId, toTitle, reason]
+      properties:
+        fromId:
+          type: integer
+        fromTitle:
+          type: string
+        toId:
+          type: integer
+        toTitle:
+          type: string
+        reason:
+          type: string
+
+    MemoryConnection:
+      type: object
+      required: [id, fromMemoryId, toMemoryId, relationshipType, createdAt]
+      properties:
+        id:
+          type: integer
+        fromMemoryId:
+          type: integer
+        toMemoryId:
+          type: integer
+        relationshipType:
+          type: string
+          description: "related | supports | contradicts | supersedes | implements | informs"
+        createdAt:
+          type: string
+
+    MemoryConnectionInput:
+      type: object
+      required: [fromMemoryId, toMemoryId, relationshipType]
+      properties:
+        fromMemoryId:
+          type: integer
+        toMemoryId:
+          type: integer
+        relationshipType:
+          type: string
+
+    ConnectedMemory:
+      type: object
+      required: [connectionId, relationshipType, memory]
+      properties:
+        connectionId:
+          type: integer
+        relationshipType:
+          type: string
+        direction:
+          type: string
+          description: "from | to"
+        memory:
+          $ref: "#/components/schemas/MemoryEntry"
+
+    CategoryCount:
+      type: object
+      required: [category, count]
+      properties:
+        category:
+          type: string
+        count:
+          type: integer
+
+    # ─── CHAT SCHEMAS ─────────────────────────────────────────────────────────
+    ChatMessage:
+      type: object
+      required: [id, role, content, timestamp]
+      properties:
+        id:
+          type: integer
+        role:
+          type: string
+          description: "user | orchestrator | system"
+        content:
+          type: string
+        agentActions:
+          type: ["string", "null"]
+          description: JSON array of agent actions taken
+        timestamp:
+          type: string
+
+    ChatMessageInput:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+
+    ChatResponse:
+      type: object
+      required: [userMessage, orchestratorResponse]
+      properties:
+        userMessage:
+          $ref: "#/components/schemas/ChatMessage"
+        orchestratorResponse:
+          $ref: "#/components/schemas/ChatMessage"
+        agentActions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentAction"
+
+    AgentAction:
+      type: object
+      required: [agentId, agentName, action]
+      properties:
+        agentId:
+          type: string
+        agentName:
+          type: string
+        action:
+          type: string
+        result:
+          type: ["string", "null"]
+
+    # ─── IDEA SCHEMAS ─────────────────────────────────────────────────────────
+    Idea:
+      type: object
+      required: [id, agentId, agentName, title, description, category, status, createdAt]
+      properties:
+        id:
+          type: integer
+        agentId:
+          type: string
+        agentName:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+          description: "marketing | sales | research | finance | operations | product"
+        status:
+          type: string
+          description: "pending | approved | rejected | implementing | implemented"
+        impact:
+          type: string
+          description: "low | medium | high"
+        effort:
+          type: string
+          description: "low | medium | high"
+        feedback:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    IdeaInput:
+      type: object
+      required: [agentId, agentName, title, description, category]
+      properties:
+        agentId:
+          type: string
+        agentName:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        impact:
+          type: string
+        effort:
+          type: string
+
+    IdeaUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+        feedback:
+          type: string
+
+    PendingCount:
+      type: object
+      required: [count]
+      properties:
+        count:
+          type: integer
+
+    # ─── REPORT SCHEMAS ───────────────────────────────────────────────────────
+    DashboardMetrics:
+      type: object
+      required: [activeAgents, openLeads, pendingIdeas, totalRevenue, totalExpenses, activeTasksCount]
+      properties:
+        activeAgents:
+          type: integer
+        openLeads:
+          type: integer
+        pendingIdeas:
+          type: integer
+        totalRevenue:
+          type: number
+        totalExpenses:
+          type: number
+        activeTasksCount:
+          type: integer
+        conversionRate:
+          type: number
+        topNextAction:
+          type: ["string", "null"]
+
+    PipelineReport:
+      type: object
+      required: [stages]
+      properties:
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/PipelineStage"
+        totalValue:
+          type: number
+        averageDealSize:
+          type: number
+
+    PipelineStage:
+      type: object
+      required: [stage, count, value]
+      properties:
+        stage:
+          type: string
+        count:
+          type: integer
+        value:
+          type: number
+
+    FinanceReport:
+      type: object
+      required: [revenue, expenses, cashFlow, campaignROI]
+      properties:
+        revenue:
+          type: number
+        expenses:
+          type: number
+        cashFlow:
+          type: number
+        campaignROI:
+          type: number
+        revenueByMonth:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonthlyFigure"
+        topExpenses:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExpenseItem"
+
+    MonthlyFigure:
+      type: object
+      required: [month, value]
+      properties:
+        month:
+          type: string
+        value:
+          type: number
+
+    ExpenseItem:
+      type: object
+      required: [category, amount]
+      properties:
+        category:
+          type: string
+        amount:
+          type: number
+
+    # ─── DECISION SCHEMAS ─────────────────────────────────────────────────────
+    Decision:
+      type: object
+      required: [id, title, description, madeBy, impact, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        madeBy:
+          type: string
+        impact:
+          type: string
+          description: "low | medium | high | critical"
+        status:
+          type: string
+          description: "active | superseded | archived"
+        relatedArea:
+          type: ["string", "null"]
+          description: "marketing | sales | research | finance | operations | product"
+        createdAt:
+          type: string
+
+    DecisionInput:
+      type: object
+      required: [title, description, madeBy, impact]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        madeBy:
+          type: string
+        impact:
+          type: string
+        relatedArea:
+          type: string
+
+    # ─── SYSTEM CONTEXT SCHEMAS ────────────────────────────────────────────────
+    SystemContext:
+      type: object
+      required: [brain, updatedAt]
+      properties:
+        brain:
+          $ref: "#/components/schemas/BrainData"
+        updatedAt:
+          type: string
+
+    SystemContextInput:
+      type: object
+      required: [brain]
+      properties:
+        brain:
+          $ref: "#/components/schemas/BrainData"
+
+    BrainData:
+      type: object
+      properties:
+        business:
+          type: object
+          properties:
+            vision:
+              type: string
+            mission:
+              type: string
+            principles:
+              type: array
+              items:
+                type: string
+            revenueTarget:
+              type: string
+            growthStrategy:
+              type: string
+            riskTolerance:
+              type: string
+            orchestratorRules:
+              type: array
+              items:
+                type: string
+        personal:
+          type: object
+          properties:
+            vision:
+              type: string
+            purpose:
+              type: string
+            values:
+              type: array
+              items:
+                type: string
+            workingStyle:
+              type: string
+            healthPriorities:
+              type: array
+              items:
+                type: string
+            wealthGoals:
+              type: string
+            nonNegotiables:
+              type: array
+              items:
+                type: string
+
+    # ─── OPPORTUNITY SCHEMAS ───────────────────────────────────────────────────
+    OpportunityItem:
+      type: object
+      required: [id, title, description, category, source, status, priority, discoveredAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+          description: "niche | service | partnership | automation | revenue | competitive | product"
+        source:
+          type: string
+        status:
+          type: string
+          description: "new | evaluating | pursuing | captured | rejected"
+        priority:
+          type: string
+          description: "low | medium | high | critical"
+        estimatedValue:
+          type: ["string", "null"]
+        tags:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        discoveredAt:
+          type: string
+        updatedAt:
+          type: string
+
+    OpportunityInput:
+      type: object
+      required: [title, description, category]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        source:
+          type: string
+        status:
+          type: string
+        priority:
+          type: string
+        estimatedValue:
+          type: string
+        tags:
+          type: string
+        notes:
+          type: string
+
+    OpportunityUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+        priority:
+          type: string
+        estimatedValue:
+          type: string
+        tags:
+          type: string
+        notes:
+          type: string
+        category:
+          type: string
+
+    DailyPlan:
+      type: object
+      required: [generatedAt, mission, topActions, risksToControl, opportunitiesToPush, whatToIgnore, decisionRationale]
+      properties:
+        generatedAt:
+          type: string
+        mission:
+          $ref: "#/components/schemas/DailyMission"
+        topActions:
+          type: array
+          items:
+            $ref: "#/components/schemas/DailyAction"
+        risksToControl:
+          type: array
+          items:
+            $ref: "#/components/schemas/DailyRisk"
+        opportunitiesToPush:
+          type: array
+          items:
+            $ref: "#/components/schemas/DailyOpportunity"
+        whatToIgnore:
+          type: array
+          items:
+            $ref: "#/components/schemas/DailyIgnoreItem"
+        decisionRationale:
+          type: string
+
+    DailyMission:
+      type: object
+      required: [title, rationale, source, sourceType]
+      properties:
+        title:
+          type: string
+        rationale:
+          type: string
+        source:
+          type: string
+        sourceType:
+          type: string
+        sourceId:
+          type: integer
+
+    DailyAction:
+      type: object
+      required: [rank, action, whyItMatters, source, sourceType, impactLevel, executionLevel]
+      properties:
+        rank:
+          type: integer
+        action:
+          type: string
+        whyItMatters:
+          type: string
+        source:
+          type: string
+        sourceType:
+          type: string
+        sourceId:
+          type: integer
+        impactLevel:
+          type: string
+        executionLevel:
+          type: string
+
+    DailyRisk:
+      type: object
+      required: [title, mitigation, urgency, source]
+      properties:
+        title:
+          type: string
+        mitigation:
+          type: string
+        urgency:
+          type: string
+        source:
+          type: string
+        sourceId:
+          type: integer
+
+    DailyOpportunity:
+      type: object
+      required: [title, whyToday, source]
+      properties:
+        title:
+          type: string
+        whyToday:
+          type: string
+        source:
+          type: string
+        estimatedValue:
+          type: string
+        sourceId:
+          type: integer
+
+    DailyIgnoreItem:
+      type: object
+      required: [title, reason]
+      properties:
+        title:
+          type: string
+        reason:
+          type: string
+
+    SetupContext:
+      type: object
+      required: [completionStatus]
+      properties:
+        businessProfile:
+          type: object
+          additionalProperties: true
+        revenueGoal:
+          type: object
+          additionalProperties: true
+        salesStrategy:
+          type: object
+          additionalProperties: true
+        services:
+          type: object
+          additionalProperties: true
+        deliveryProcess:
+          type: object
+          additionalProperties: true
+        operatingRules:
+          type: object
+          additionalProperties: true
+        completionStatus:
+          $ref: "#/components/schemas/SetupCompletionStatus"
+
+    SetupCompletionStatus:
+      type: object
+      required: [businessProfile, revenueGoal, salesStrategy, services, deliveryProcess, operatingRules, totalComplete, totalSections]
+      properties:
+        businessProfile:
+          type: boolean
+        revenueGoal:
+          type: boolean
+        salesStrategy:
+          type: boolean
+        services:
+          type: boolean
+        deliveryProcess:
+          type: boolean
+        operatingRules:
+          type: boolean
+        totalComplete:
+          type: integer
+        totalSections:
+          type: integer
+
+    SetupSectionData:
+      type: object
+      additionalProperties: true
+
+    SetupSectionResponse:
+      type: object
+      required: [section, data, updatedAt]
+      properties:
+        section:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+        updatedAt:
+          type: string
+
+    MorningBriefHotLead:
+      type: object
+      required: [name, company, stage, action, value]
+      properties:
+        name:
+          type: string
+        company:
+          type: string
+        stage:
+          type: string
+        action:
+          type: string
+        value:
+          type: number
+
+    MorningBriefRisk:
+      type: object
+      required: [title, urgency, recommendation]
+      properties:
+        title:
+          type: string
+        urgency:
+          type: string
+        recommendation:
+          type: string
+
+    MorningBriefOpportunity:
+      type: object
+      required: [title, why]
+      properties:
+        title:
+          type: string
+        why:
+          type: string
+        estimatedValue:
+          type: string
+          nullable: true
+
+    MorningBriefMemoryHighlight:
+      type: object
+      required: [title, whatChanged]
+      properties:
+        title:
+          type: string
+        whatChanged:
+          type: string
+
+    MorningBrief:
+      type: object
+      required: [generatedAt, isFromCache, headline, situationReport, weekFocus, pipelinePulse, risksAndDecisions, opportunitiesToPush, memoryHighlights, chiefOfStaffCall, newSinceLastBrief]
+      properties:
+        generatedAt:
+          type: string
+        isFromCache:
+          type: boolean
+        date:
+          type: string
+        headline:
+          type: string
+        situationReport:
+          type: string
+        weekFocus:
+          type: object
+          required: [objective, rationale]
+          properties:
+            objective:
+              type: string
+            rationale:
+              type: string
+        pipelinePulse:
+          type: object
+          required: [summary, pipelineValue, insight]
+          properties:
+            summary:
+              type: string
+            pipelineValue:
+              type: number
+            insight:
+              type: string
+            hotLeads:
+              type: array
+              items:
+                $ref: "#/components/schemas/MorningBriefHotLead"
+        risksAndDecisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/MorningBriefRisk"
+        opportunitiesToPush:
+          type: array
+          items:
+            $ref: "#/components/schemas/MorningBriefOpportunity"
+        memoryHighlights:
+          type: array
+          items:
+            $ref: "#/components/schemas/MorningBriefMemoryHighlight"
+        chiefOfStaffCall:
+          type: object
+          required: [action, timeframe, why]
+          properties:
+            action:
+              type: string
+            timeframe:
+              type: string
+            why:
+              type: string
+        newSinceLastBrief:
+          type: array
+          items:
+            type: string
