@@ -12,7 +12,16 @@ import {
   useListMemoryEntries,
   useListOpportunities,
   useListLeads,
+  useGetDailyPlan,
+  useGetMorningBrief,
+  useGetMemoryBriefing,
+  useGetLeadStats,
+  useGetSetupContext,
 } from "@workspace/api-client-react";
+import {
+  CityHero, SystemStatusCard, MissionCard, IntelRail, MayaCard, IntelFooter,
+  type CityData,
+} from "@/components/city/CityChrome";
 import {
   BrainCircuit, TrendingUp, Megaphone, ScanSearch, DollarSign,
   Settings2, Package, Database, Target, ChevronLeft,
@@ -343,39 +352,58 @@ function CityDefs() {
 
 // ─── Background ───────────────────────────────────────────────────────────────
 
-function CityBackground() {
+function CityBackground({ mode }: { mode: "night" | "day" }) {
+  const day = mode === "day";
   // Isometric ground grid lines
   const lines = [];
-  const step = TWH; // tile step
+  const gridStroke = day ? "rgba(125,170,235,0.11)" : "rgba(96,165,250,0.06)";
   for (let i = -20; i <= 40; i++) {
     // Right-going lines (isoX direction)
     const startX = i * TWH - 1000;
     lines.push(
       <line key={`r${i}`}
         x1={startX} y1={0} x2={startX + VW * 1.5} y2={VW * 1.5 * THH / TWH}
-        stroke="rgba(96,165,250,0.06)" strokeWidth="0.8" />
+        stroke={gridStroke} strokeWidth="0.8" />
     );
     // Left-going lines (isoY direction)
     lines.push(
       <line key={`l${i}`}
         x1={VW - startX} y1={0} x2={VW - startX - VW * 1.5} y2={VW * 1.5 * THH / TWH}
-        stroke="rgba(96,165,250,0.06)" strokeWidth="0.8" />
+        stroke={gridStroke} strokeWidth="0.8" />
     );
   }
   return (
     <g>
-      {/* Deep space */}
-      <rect x="0" y="0" width={VW} height={VH} fill="#06090f" />
+      {/* Sky */}
+      <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+        {day ? (
+          <>
+            <stop offset="0%" stopColor="#13243f" />
+            <stop offset="45%" stopColor="#0e1c33" />
+            <stop offset="100%" stopColor="#080f1d" />
+          </>
+        ) : (
+          <>
+            <stop offset="0%" stopColor="#06090f" />
+            <stop offset="100%" stopColor="#06090f" />
+          </>
+        )}
+      </linearGradient>
+      <rect x="0" y="0" width={VW} height={VH} fill="url(#sky)" />
+      {/* Dawn horizon band in day mode */}
+      {day && (
+        <ellipse cx={VW / 2} cy="40" rx={VW * 0.7} ry="120" fill="rgba(120,170,235,0.10)" filter="url(#blur12)" />
+      )}
       {/* Vignette */}
       <radialGradient id="vig" cx="50%" cy="45%" r="55%">
         <stop offset="0%" stopColor="#0c1628" stopOpacity="0" />
-        <stop offset="100%" stopColor="#020306" stopOpacity="0.8" />
+        <stop offset="100%" stopColor="#020306" stopOpacity={day ? 0.55 : 0.8} />
       </radialGradient>
       <rect x="0" y="0" width={VW} height={VH} fill="url(#vig)" />
       {/* Grid */}
       {lines}
       {/* HQ epicentre atmosphere */}
-      <ellipse cx="690" cy="380" rx="280" ry="120" fill="rgba(59,130,246,0.04)" filter="url(#blur12)" />
+      <ellipse cx="690" cy="380" rx="280" ry="120" fill={day ? "rgba(99,150,226,0.07)" : "rgba(59,130,246,0.04)"} filter="url(#blur12)" />
     </g>
   );
 }
@@ -677,18 +705,18 @@ function BuildingLabel({
 
 // ─── City Canvas ──────────────────────────────────────────────────────────────
 
-function CityCanvas({ onSelect }: { onSelect: (id: string) => void }) {
+function CityCanvas({ onSelect, mode }: { onSelect: (id: string) => void; mode: "night" | "day" }) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const hq = BUILDINGS.find(b => b.id === "hq")!;
 
   return (
     <svg
       viewBox={`0 0 ${VW} ${VH}`}
-      style={{ minWidth: 800, width: "100%", display: "block" }}
+      style={{ minWidth: 800, minHeight: 480, width: "100%", height: "100%", display: "block" }}
       className="select-none"
     >
       <CityDefs />
-      <CityBackground />
+      <CityBackground mode={mode} />
       <EnergyPaths hqCx={hq.cx} hqCy={hq.cy} />
 
       {/* Buildings: painter's algorithm (back to front) */}
@@ -1040,41 +1068,30 @@ function BuildingInterior({
   );
 }
 
-// ─── City Header ──────────────────────────────────────────────────────────────
-
-function CityHeader() {
-  const online    = BUILDINGS.filter(b => b.status === "online").length;
-  const attention = BUILDINGS.filter(b => b.status === "attention").length;
-  const standby   = BUILDINGS.filter(b => b.status === "standby").length;
-  return (
-    <div className="flex items-center justify-between flex-shrink-0 pb-3">
-      <div className="flex items-center gap-3">
-        <Map className="h-4 w-4 text-primary/70" />
-        <h1 className="text-sm font-bold tracking-[0.18em] uppercase text-white/60">NXS City</h1>
-        <span className="text-[8px] font-mono text-white/20 border border-white/8 px-2 py-0.5 rounded">ISOMETRIC COMMAND CAMPUS</span>
-      </div>
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-green-400" /><span className="text-[8px] font-mono text-white/30">{online} ONLINE</span></div>
-        <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" /><span className="text-[8px] font-mono text-white/30">{attention} ATTENTION</span></div>
-        <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-slate-500" /><span className="text-[8px] font-mono text-white/30">{standby} STANDBY</span></div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function NXSCity() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mode, setMode] = useState<"night" | "day">("night");
 
   const { data: memStatus } = useGetMemoryAgentStatus();
   const { data: oppsRaw }   = useListOpportunities({});
   const { data: leadsRaw }  = useListLeads({});
   const { data: mems }      = useListMemoryEntries({});
+  const { data: plan }      = useGetDailyPlan();
+  const { data: brief }     = useGetMorningBrief();
+  const { data: briefing }  = useGetMemoryBriefing();
+  const { data: leadStats } = useGetLeadStats();
+  const { data: setup }     = useGetSetupContext();
 
   const opps   = oppsRaw  ?? [];
   const leads  = leadsRaw ?? [];
   const memories = mems   ?? [];
+
+  const cityData: CityData = {
+    plan, brief, briefing, leadStats, setup,
+    leads, opportunities: opps,
+  };
 
   const liveData = {
     memCount: memStatus?.totalMemories ?? memories.length,
@@ -1107,12 +1124,24 @@ export default function NXSCity() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex flex-col h-full"
+            className="flex flex-col h-full overflow-y-auto"
           >
-            <CityHeader />
-            <div className="flex-1 rounded-2xl border border-white/5 overflow-auto bg-[#06090f]" style={{ minHeight: 480 }}>
-              <CityCanvas onSelect={setSelectedId} />
+            <CityHero />
+            <div className="relative flex-1 rounded-2xl border border-white/5 overflow-hidden bg-[#06090f]" style={{ minHeight: 480 }}>
+              <div className="h-full overflow-auto">
+                <CityCanvas onSelect={setSelectedId} mode={mode} />
+              </div>
+              {/* HUD overlays — desktop only, never block building clicks */}
+              <div className="pointer-events-none absolute inset-0 hidden lg:block">
+                <div className="absolute top-4 left-4"><SystemStatusCard data={cityData} /></div>
+                <div className="absolute top-4 right-4 flex flex-col gap-3 max-h-[calc(100%-2rem)]">
+                  <MissionCard data={cityData} />
+                  <div className="hidden xl:block"><IntelRail data={cityData} /></div>
+                </div>
+                <div className="absolute bottom-4 left-4"><MayaCard /></div>
+              </div>
             </div>
+            <IntelFooter data={cityData} mode={mode} onModeChange={setMode} />
           </motion.div>
         )}
       </AnimatePresence>
