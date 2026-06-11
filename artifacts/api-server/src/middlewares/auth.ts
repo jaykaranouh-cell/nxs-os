@@ -4,11 +4,11 @@ import type { Request, Response, NextFunction } from "express";
 /**
  * Bearer-token guard for the whole API. Enabled by setting NXS_ACCESS_TOKEN;
  * when the env var is unset (local dev) all requests pass through.
- * /health stays open so uptime checks and deploy probes keep working.
+ * /healthz stays open so uptime checks and deploy probes keep working.
  */
 export function authGuard(req: Request, res: Response, next: NextFunction): void {
   const expected = process.env.NXS_ACCESS_TOKEN;
-  if (!expected || req.path === "/health") {
+  if (!expected || req.path === "/healthz") {
     next();
     return;
   }
