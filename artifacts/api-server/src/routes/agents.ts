@@ -6,47 +6,9 @@ import {
   CreateAgentTaskBody,
   UpdateAgentTaskBody,
 } from "@workspace/api-zod";
+import { AGENTS, serializeAgent } from "../lib/orchestrator";
 
 const router = Router();
-
-// Static agent definitions — department agents are always present
-const AGENTS = [
-  {
-    id: "orchestrator",
-    name: "CEO Orchestrator",
-    department: "orchestrator",
-    description: "Coordinates all department agents, routes tasks, synthesizes business intelligence, and serves as Jay's strategic AI partner.",
-    capabilities: ["Strategic planning", "Agent coordination", "Decision synthesis", "Business intelligence", "Cross-department routing"],
-  },
-  {
-    id: "sales",
-    name: "Sales Agent",
-    department: "sales",
-    description: "Manages lead qualification, outreach strategy, follow-up reminders, proposal preparation, and CRM-style notes.",
-    capabilities: ["Lead qualification", "Outreach strategy", "Proposal drafting", "Follow-up scheduling", "CRM management"],
-  },
-  {
-    id: "marketing",
-    name: "Marketing Agent",
-    department: "marketing",
-    description: "Manages campaign planning, social media strategy, content calendars, and marketing performance analysis.",
-    capabilities: ["Campaign planning", "Social media strategy", "Content calendars", "Performance analysis", "Brand positioning"],
-  },
-  {
-    id: "research",
-    name: "Research Agent",
-    department: "research",
-    description: "Monitors competitors, industry trends, market opportunities, pricing, and service improvement opportunities.",
-    capabilities: ["Competitor analysis", "Market research", "Trend monitoring", "Pricing intelligence", "Opportunity identification"],
-  },
-  {
-    id: "finance",
-    name: "Finance Agent",
-    department: "finance",
-    description: "Tracks revenue, expenses, cash flow notes, campaign ROI, and provides pricing recommendations.",
-    capabilities: ["Revenue tracking", "Expense management", "Cash flow analysis", "ROI calculation", "Pricing recommendations"],
-  },
-];
 
 // GET /agents
 router.get("/agents", async (req, res) => {
@@ -57,7 +19,7 @@ router.get("/agents", async (req, res) => {
     const agentTasks = tasks.filter((t) => t.agentId === agent.id);
     const latestLog = logs.find((l) => l.agentId === agent.id);
     return {
-      ...agent,
+      ...serializeAgent(agent),
       status: agentTasks.length > 0 ? "busy" : "active",
       activeTasks: agentTasks.length,
       currentTask: agentTasks[0]?.title ?? null,
@@ -100,7 +62,7 @@ router.get("/agents/:agentId", async (req, res) => {
     .limit(1);
 
   res.json({
-    ...agent,
+    ...serializeAgent(agent),
     status: activeTasks > 0 ? "busy" : "active",
     activeTasks,
     currentTask,

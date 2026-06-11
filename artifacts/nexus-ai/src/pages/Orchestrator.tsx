@@ -20,6 +20,7 @@ import {
   ChevronRight, ArrowRight, Database, BookOpen, CheckSquare, Plus
 } from "lucide-react";
 import { ContextIntakeModal } from "@/components/ContextIntakeModal";
+import { authHeaders } from "@/lib/auth";
 
 type ExecLevel = "green" | "amber" | "red";
 
@@ -257,6 +258,7 @@ export default function Orchestrator() {
   const [localUserMessage, setLocalUserMessage] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState<string>("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [consulting, setConsulting] = useState<string[]>([]);
   const hasSentInitialQuery = useRef(false);
   const lastMessageCount = useRef(0);
   const search = useSearch();
@@ -308,10 +310,11 @@ export default function Orchestrator() {
     setLocalUserMessage(msg);
     setIsStreaming(true);
     setStreamingContent("");
+    setConsulting([]);
     try {
       const resp = await fetch("/api/chat/stream", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ content: msg }),
       });
       if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`);
@@ -328,6 +331,13 @@ export default function Orchestrator() {
           if (!line.startsWith("data: ")) continue;
           try {
             const d = JSON.parse(line.slice(6)) as Record<string, unknown>;
+            if (Array.isArray(d.dispatch)) {
+              setConsulting(
+                (d.dispatch as Array<{ agentName?: string }>)
+                  .map((a) => a.agentName ?? "")
+                  .filter(Boolean)
+              );
+            }
             if (typeof d.content === "string") setStreamingContent((p) => p + d.content);
             if (d.done === true) {
               queryClient.invalidateQueries({ queryKey: getListChatMessagesQueryKey({ limit: 50 }) });
@@ -341,6 +351,7 @@ export default function Orchestrator() {
       queryClient.invalidateQueries({ queryKey: getListChatMessagesQueryKey({ limit: 50 }) });
     } finally {
       setIsStreaming(false);
+      setConsulting([]);
     }
   }
 
@@ -522,10 +533,18 @@ export default function Orchestrator() {
                 <Avatar className="h-7 w-7 mt-1 border border-primary/50 flex-shrink-0">
                   <AvatarFallback className="bg-primary/10 text-primary"><Bot className="h-3.5 w-3.5" /></AvatarFallback>
                 </Avatar>
-                <div className="bg-primary/10 border-primary/20 border px-4 py-3 rounded-2xl flex items-center gap-1 shadow-md">
-                  <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" />
-                  <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: "0.15s" }} />
-                  <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: "0.3s" }} />
+                <div className="bg-primary/10 border-primary/20 border px-4 py-3 rounded-2xl flex items-center gap-2 shadow-md">
+                  {consulting.length > 0 && (
+                    <span className="text-xs text-primary/80 flex items-center gap-1.5">
+                      <Network className="h-3 w-3" />
+                      Consulting {consulting.join(", ")}
+                    </span>
+                  )}
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" />
+                    <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: "0.15s" }} />
+                    <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: "0.3s" }} />
+                  </span>
                 </div>
               </div>
             )}

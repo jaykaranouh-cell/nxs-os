@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/Layout";
+import { AuthGate } from "@/components/AuthGate";
+import { initAuth } from "@/lib/auth";
 
 import CommandCentre from "@/pages/CommandCentre";
 import Orchestrator from "@/pages/Orchestrator";
@@ -17,6 +19,8 @@ import BusinessSetup from "@/pages/BusinessSetup";
 import MorningBrief from "@/pages/MorningBrief";
 import NXSCity from "@/pages/NXSCity";
 import NotFound from "@/pages/not-found";
+
+initAuth();
 
 const queryClient = new QueryClient();
 
@@ -47,9 +51,11 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
+        <AuthGate>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
+          </WouterRouter>
+        </AuthGate>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

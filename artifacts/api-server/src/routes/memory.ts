@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { memoryEntriesTable, memoryConnectionsTable } from "@workspace/db";
+import { memoryEntriesTable, memoryConnectionsTable, insertMemoryEntrySchema } from "@workspace/db";
 import { eq, desc, or, sql, and, lt, gte } from "drizzle-orm";
 import {
   CreateMemoryEntryBody,
@@ -51,9 +51,16 @@ router.post("/memory", async (req, res) => {
     res.status(400).json({ error: "Invalid memory entry data" });
     return;
   }
+  // Second pass through the DB insert schema enforces the enum values
+  // (priority/importance/confidence/status) that the API types leave open.
+  const validated = insertMemoryEntrySchema.safeParse(parsed.data);
+  if (!validated.success) {
+    res.status(400).json({ error: "Invalid memory entry data" });
+    return;
+  }
   const [entry] = await db
     .insert(memoryEntriesTable)
-    .values(parsed.data)
+    .values(validated.data)
     .returning();
   res.status(201).json(serialize(entry));
 });
@@ -326,9 +333,14 @@ router.patch("/memory/:id", async (req, res) => {
     res.status(400).json({ error: "Invalid data" });
     return;
   }
+  const validated = insertMemoryEntrySchema.partial().safeParse(parsed.data);
+  if (!validated.success) {
+    res.status(400).json({ error: "Invalid data" });
+    return;
+  }
   const [entry] = await db
     .update(memoryEntriesTable)
-    .set({ ...parsed.data, updatedAt: new Date() })
+    .set({ ...validated.data, updatedAt: new Date() })
     .where(eq(memoryEntriesTable.id, id))
     .returning();
   if (!entry) {

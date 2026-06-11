@@ -10,7 +10,8 @@ A web-based AI business orchestration dashboard for Jay — a central command ce
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string (auto-provisioned)
+- Required env: `DATABASE_URL` — Postgres connection string (auto-provisioned); `OPENAI_API_KEY` — for orchestrator + department agents
+- Optional env: `NXS_ACCESS_TOKEN` — when set, every `/api` route (except `/api/health`) requires `Authorization: Bearer <token>`; the frontend shows an unlock screen and stores the token in localStorage
 
 ## Stack
 
@@ -33,10 +34,11 @@ A web-based AI business orchestration dashboard for Jay — a central command ce
 
 ## Architecture decisions
 
-- Agent definitions (CEO Orchestrator, Sales, Marketing, Research, Finance) are stored statically in the API server — they always exist and are never user-created
+- Agent definitions (CEO Orchestrator, Sales, Marketing, Research, Finance) live in `artifacts/api-server/src/lib/orchestrator/agents.ts` (single source of truth, incl. per-agent system prompts) — they always exist and are never user-created
+- Chat is a real multi-agent pipeline (`src/lib/orchestrator/`): a gpt-4o-mini router decides which department agents to dispatch (0–3), each dispatched agent runs its own gpt-4o call in parallel and is logged to `agent_tasks` + `agent_logs`, then the orchestrator streams a CoS synthesis that integrates their reports. `agentActions` on chat messages reflect these real runs
+- Deterministic rule guards (no cold outreach, goal-spread challenge) fire in `src/lib/orchestrator/guards.ts` before any LLM call
 - Lead qualification workflow: incoming → Sales Agent qualifies → routes to Sales (qualified) or Marketing (nurture) or logged as rejected
-- The Memory system is the core moat: persistent, categorized, searchable knowledge base shared across all agents
-- Orchestrator chat generates contextual responses server-side; designed to plug into OpenAI API when ready (replace `generateOrchestratorResponse` in `chat.ts`)
+- The Memory system is the core moat: persistent, categorized, searchable knowledge base shared across all agents. `priority`/`importance`/`confidence`/`status` are typed enums in the Drizzle schema and enforced at the API boundary via `insertMemoryEntrySchema`
 - `estimatedValue` uses Drizzle `numeric` type (stored as string) — always convert to `String()` on insert/update, `parseFloat()` on read
 
 ## Product
@@ -61,10 +63,11 @@ A web-based AI business orchestration dashboard for Jay — a central command ce
 - After changing `lib/db/src/schema/`, run `pnpm run typecheck:libs` then `pnpm --filter @workspace/db run push`
 - `numeric` Drizzle columns expect strings: use `String(value)` on insert, `parseFloat(value)` on serialize
 - API server routes must be registered in `artifacts/api-server/src/routes/index.ts`
-- The Orchestrator response logic is in `artifacts/api-server/src/routes/chat.ts` → `generateOrchestratorResponse()` — replace with real OpenAI API call when ready
+- `memory_connections` now has cascading foreign keys to `memory_entries` — the next `pnpm --filter @workspace/db run push` will add the constraints and fails if orphaned connection rows exist (delete them first)
+- Orchestrator logic lives in `artifacts/api-server/src/lib/orchestrator/` (context, prompts, guards, dispatch) — `routes/chat.ts` is just the HTTP layer
 
 ## Pointers
 
 - See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
-- OpenAI integration: swap `generateOrchestratorResponse()` in `chat.ts` for a real API call — the interface is already designed for it
+- To tune agent behaviour, edit the system prompts in `src/lib/orchestrator/agents.ts` and the routing rules in `dispatch.ts`
 - Future integrations: CRM, email, calendar, social media tools, accounting systems — all routes are designed with placeholder data and clear extension points
