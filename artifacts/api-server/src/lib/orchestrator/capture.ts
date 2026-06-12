@@ -37,7 +37,12 @@ function extractJson(text: string): string {
   return (fenced ? fenced[1] : text).trim();
 }
 
-export function captureMemoryFromTurn(userMessage: string, response: string, messageId: number): void {
+export function captureMemoryFromTurn(
+  userMessage: string,
+  response: string,
+  messageId: number,
+  alreadySaved: string[] = []
+): void {
   // Trivial turns can't contain durable memory — don't spend a call on them.
   if (userMessage.length < 40 || !response) return;
 
@@ -51,7 +56,11 @@ export function captureMemoryFromTurn(userMessage: string, response: string, mes
         messages: [
           {
             role: "user",
-            content: `Jay said:\n${userMessage}\n\nChief of Staff replied:\n${response}`,
+            content: `Jay said:\n${userMessage}\n\nChief of Staff replied:\n${response}${
+              alreadySaved.length
+                ? `\n\nAlready saved to memory this turn (do NOT propose these again):\n${alreadySaved.map((s) => `- ${s}`).join("\n")}`
+                : ""
+            }`,
           },
         ],
       });

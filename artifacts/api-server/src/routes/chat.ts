@@ -200,7 +200,7 @@ router.post("/chat/messages", async (req, res) => {
   }
 
   const orchMsg = await saveOrchestratorMessage(response, agentActions);
-  captureMemoryFromTurn(content, response, orchMsg.id);
+  captureMemoryFromTurn(content, response, orchMsg.id, agentActions.filter((a) => a.action.startsWith("create_memory")).map((a) => a.result ?? ""));
 
   res.status(201).json({
     userMessage: serializeMessage(userMsg),
@@ -267,7 +267,7 @@ router.post("/chat/stream", async (req, res) => {
 
     const actions = buildActions(runs, toolEvents);
     const orchMsg = await saveOrchestratorMessage(text || "No response generated.", actions);
-    captureMemoryFromTurn(content, text, orchMsg.id);
+    captureMemoryFromTurn(content, text, orchMsg.id, toolEvents.filter((e) => e.tool === "create_memory_entry").map((e) => e.summary));
 
     sendEvent(res, { done: true, userMessageId: userMsg.id, messageId: orchMsg.id, agentActions: actions });
     res.end();
