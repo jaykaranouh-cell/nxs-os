@@ -22,6 +22,7 @@ import { promisify } from "node:util";
 import type { Anthropic } from "@workspace/integrations-anthropic-server";
 import { DEPARTMENT_AGENTS, getAgent } from "./agents";
 import { runDepartmentAgent, sendAgentMessage } from "./dispatch";
+import { setAgentName } from "./roster";
 import { loadContext } from "./context";
 import { buildAgentBriefing } from "./prompts";
 import { completeText } from "./llm";
@@ -275,6 +276,33 @@ const updateOpportunity = {
 
 // ─── Agent tools: Maya commands her own team ──────────────────────────────────
 
+const nameAgentSchema = z.object({
+  agentId: z.enum(["sales", "marketing", "research", "finance"]),
+  name: z.string().regex(/^[A-Za-z][A-Za-z .'-]{1,30}$/, "Invalid name"),
+});
+
+const nameAgent = {
+  definition: {
+    name: "name_agent",
+    description:
+      "Give one of your department agents a personal name (you are Maya; your team deserves names too). The name is used everywhere: their prompts, logs, and the team channel.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        agentId: { type: "string", enum: ["sales", "marketing", "research", "finance"] },
+        name: { type: "string", description: "A personal name, e.g. 'Apex'" },
+      },
+      required: ["agentId", "name"],
+    },
+  },
+  schema: nameAgentSchema,
+  async run(input: z.infer<typeof nameAgentSchema>): Promise<string> {
+    await setAgentName(input.agentId, input.name);
+    await logAction("Named an agent", `${input.agentId} is now called ${input.name}`);
+    return `The ${input.agentId} agent is now named ${input.name}`;
+  },
+};
+
 const messageTeamSchema = z.object({
   to: z.enum(["sales", "marketing", "research", "finance", "all"]),
   content: z.string().min(5),
@@ -336,6 +364,7 @@ const dispatchAgent = {
 
 const spawnAgentSchema = z.object({
   role: z.string().min(3).max(60),
+  name: z.string().max(30).optional(),
   instructions: z.string().min(20),
   task: z.string().min(10),
 });
@@ -349,6 +378,7 @@ const spawnAgent = {
       type: "object" as const,
       properties: {
         role: { type: "string", description: "Short role name, e.g. 'Pricing Analyst'" },
+        name: { type: "string", description: "Optional personal name you give this specialist, e.g. 'Vera'" },
         instructions: { type: "string", description: "The specialist's system instructions: perspective, priorities, constraints" },
         task: { type: "string", description: "The one task to perform" },
       },
@@ -361,7 +391,7 @@ const spawnAgent = {
     const briefing = buildAgentBriefing(ctx);
     const [taskRow] = await db
       .insert(agentTasksTable)
-      .values({ agentId: "adhoc", title: `[${input.role}] ${input.task}`.slice(0, 200), status: "in_progress", priority: "medium" })
+      .values({ agentId: "adhoc", title: `[${input.name ? `${input.name}, ` : ""}${input.role}] ${input.task}`.slice(0, 200), status: "in_progress", priority: "medium" })
       .returning();
     try {
       const findings = await completeText({
@@ -371,7 +401,7 @@ const spawnAgent = {
           { type: "text", text: briefing, cache_control: { type: "ephemeral" } },
           {
             type: "text",
-            text: `You are a one-off specialist agent in Jay's AI business team, spun up by Maya (the orchestrator). Your role: ${input.role}.\n\n${input.instructions}\n\nGround every claim in the business briefing above. Reply with your findings only: tight, specific, no preamble.`,
+            text: `You are a one-off specialist agent in Jay's AI business team, spun up by Maya (the orchestrator).${input.name ? ` Your name is ${input.name}.` : ""} Your role: ${input.role}.\n\n${input.instructions}\n\nGround every claim in the business briefing above. Reply with your findings only: tight, specific, no preamble.`,
           },
         ],
         user: input.task,
@@ -381,9 +411,9 @@ const spawnAgent = {
       if (!findings.trim()) throw new Error("Specialist returned nothing");
       await Promise.all([
         db.update(agentTasksTable).set({ status: "completed", description: findings, completedAt: new Date() }).where(eq(agentTasksTable.id, taskRow.id)),
-        db.insert(agentLogsTable).values({ agentId: "adhoc", agentName: input.role, action: input.task, details: findings }),
+        db.insert(agentLogsTable).values({ agentId: "adhoc", agentName: input.name ? `${input.name} (${input.role})` : input.role, action: input.task, details: findings }),
       ]);
-      return `${input.role} report on "${input.task}":\n${findings.trim()}`;
+      return `${input.name ?? input.role} report on "${input.task}":\n${findings.trim()}`;
     } catch (err) {
       await db.update(agentTasksTable).set({ status: "failed", completedAt: new Date() }).where(eq(agentTasksTable.id, taskRow.id)).catch(() => {});
       throw err;
@@ -488,7 +518,7 @@ export const COMPUTER_TOOL_DEFINITIONS: Anthropic.Tool[] = COMPUTER_TOOLS.map((t
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 
-const BASE_TOOLS = [createMemoryEntry, updateLeadStage, createAgentTask, logIdea, updateOpportunity, dispatchAgent, spawnAgent, messageTeam];
+const BASE_TOOLS = [createMemoryEntry, updateLeadStage, createAgentTask, logIdea, updateOpportunity, dispatchAgent, spawnAgent, messageTeam, nameAgent];
 const TOOLS = [...BASE_TOOLS, ...COMPUTER_TOOLS];
 
 export const TOOL_DEFINITIONS: Anthropic.Tool[] = BASE_TOOLS.map((t) => t.definition);

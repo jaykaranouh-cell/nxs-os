@@ -237,6 +237,29 @@ export const ListAgentMessagesResponse = zod.array(ListAgentMessagesResponseItem
 
 
 /**
+ * @summary Ask a department agent a question directly
+ */
+export const AskAgentParams = zod.object({
+  "agentId": zod.coerce.string()
+})
+
+export const AskAgentBody = zod.object({
+  "content": zod.string(),
+  "executionLevel": zod.enum(['green', 'amber', 'red']).optional().describe('green = act silently, amber = act and report, red = propose only')
+})
+
+export const AskAgentResponse = zod.object({
+  "id": zod.number(),
+  "fromAgentId": zod.string(),
+  "fromAgentName": zod.string(),
+  "toAgentId": zod.string(),
+  "content": zod.string(),
+  "createdAt": zod.string(),
+  "readAt": zod.string().nullish()
+})
+
+
+/**
  * @summary Get recent agent activity logs
  */
 export const GetRecentAgentActivityResponseItem = zod.object({

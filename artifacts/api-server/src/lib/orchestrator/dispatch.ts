@@ -6,6 +6,7 @@ import { choiceFor } from "./llm";
 import { logger } from "../logger";
 import { completeText } from "./llm";
 import { DEPARTMENT_AGENTS, getAgent, type AgentDefinition } from "./agents";
+import { displayName } from "./roster";
 import type { OrchestratorContext } from "./context";
 import { buildAgentBriefing } from "./prompts";
 
@@ -152,8 +153,18 @@ export async function runDepartmentAgent(
   userMessage: string,
   depth = 0
 ): Promise<AgentRun | null> {
-  const agent = getAgent(dispatch.agentId);
-  if (!agent) return null;
+  const definition = getAgent(dispatch.agentId);
+  if (!definition) return null;
+  const name = await displayName(definition.id);
+  // Carry the Maya-given name so logs, events, and reports all use it.
+  const agent: AgentDefinition = {
+    ...definition,
+    name,
+    systemPrompt:
+      name === definition.name
+        ? definition.systemPrompt
+        : `Your name is ${name}. ${definition.systemPrompt}`,
+  };
 
   const [task] = await db
     .insert(agentTasksTable)

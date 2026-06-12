@@ -199,6 +199,31 @@ paths:
                 items:
                   $ref: "#/components/schemas/AgentMessage"
 
+  /agents/{agentId}/ask:
+    post:
+      operationId: askAgent
+      tags: [agents]
+      summary: Ask a department agent a question directly
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatMessageInput"
+      responses:
+        "200":
+          description: The agent's reply (also posted to the team channel)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentMessage"
+
   /agents/activity/recent:
     get:
       operationId: getRecentAgentActivity

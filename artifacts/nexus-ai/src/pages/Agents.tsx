@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
-import { useListAgents, useGetRecentAgentActivity, useListAgentMessages } from "@workspace/api-client-react";
+import { useListAgents, useGetRecentAgentActivity, useListAgentMessages, useAskAgent, getListAgentMessagesQueryKey } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -235,7 +237,55 @@ function DeptModeCard({ mode, onToggle }: { mode: DeptMode; onToggle: (id: strin
   );
 }
 
+function AskAgentComposer() {
+  const queryClient = useQueryClient();
+  const [target, setTarget] = useState("sales");
+  const [question, setQuestion] = useState("");
+  const ask = useAskAgent({
+    mutation: {
+      onSettled: () =>
+        queryClient.invalidateQueries({ queryKey: getListAgentMessagesQueryKey() }),
+    },
+  });
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const q = question.trim();
+    if (!q || ask.isPending) return;
+    setQuestion("");
+    ask.mutate({ agentId: target, data: { content: q } });
+    // show the outgoing message immediately
+    setTimeout(() => queryClient.invalidateQueries({ queryKey: getListAgentMessagesQueryKey() }), 400);
+  }
+
+  return (
+    <form onSubmit={submit} className="flex items-center gap-2 p-3 bg-card/40 border border-border/40 rounded-lg">
+      <select
+        value={target}
+        onChange={(e) => setTarget(e.target.value)}
+        className="h-9 rounded-md bg-background border border-border/50 text-xs px-2 text-foreground flex-shrink-0"
+      >
+        <option value="sales">Sales</option>
+        <option value="marketing">Marketing</option>
+        <option value="research">Research</option>
+        <option value="finance">Finance</option>
+      </select>
+      <Input
+        value={question}
+        onChange={(e) => setQuestion(e.target.value)}
+        placeholder={ask.isPending ? "Agent is thinking..." : "Ask this agent directly..."}
+        className="h-9 text-xs"
+        disabled={ask.isPending}
+      />
+      <Button type="submit" size="sm" className="h-9 flex-shrink-0" disabled={!question.trim() || ask.isPending}>
+        {ask.isPending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="h-3.5 w-3.5" />}
+      </Button>
+    </form>
+  );
+}
+
 export default function Agents() {
+
   const [execLevels, setExecLevels] = useState<Record<string, ExecLevel>>({
     memory: "green", intelligence: "amber", execution: "amber", communication: "red",
   });
@@ -373,8 +423,9 @@ export default function Agents() {
         <div className="flex items-center gap-2 pb-2 border-b border-border/40">
           <MessageSquare className="h-4 w-4 text-primary/70" />
           <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Team Channel</h2>
-          <span className="text-[10px] text-muted-foreground/50">what the agents are telling each other</span>
+          <span className="text-[10px] text-muted-foreground/50">what the agents are telling each other — and your direct line to them</span>
         </div>
+        <AskAgentComposer />
         {teamMessages && teamMessages.length > 0 ? (
           <div className="space-y-2">
             {teamMessages.slice(0, 12).map((m) => (
@@ -383,7 +434,7 @@ export default function Agents() {
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-foreground">
                     {m.fromAgentName}
-                    <span className="text-muted-foreground/60 font-normal"> → {m.toAgentId === "all" ? "everyone" : m.toAgentId === "orchestrator" ? "Maya" : m.toAgentId}</span>
+                    <span className="text-muted-foreground/60 font-normal"> → {m.toAgentId === "all" ? "everyone" : m.toAgentId === "orchestrator" ? "Maya" : m.toAgentId === "jay" ? "Jay" : m.toAgentId}</span>
                   </p>
                   <p className="text-[11px] text-muted-foreground leading-relaxed whitespace-pre-line line-clamp-3">{m.content}</p>
                 </div>

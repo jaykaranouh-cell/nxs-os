@@ -767,6 +767,77 @@ export function useListAgentMessages<TData = Awaited<ReturnType<typeof listAgent
 
 
 
+export const getAskAgentUrl = (agentId: string,) => {
+
+
+
+
+  return `/api/agents/${agentId}/ask`
+}
+
+/**
+ * @summary Ask a department agent a question directly
+ */
+export const askAgent = async (agentId: string,
+    chatMessageInput: ChatMessageInput, options?: RequestInit): Promise<AgentMessage> => {
+
+  return customFetch<AgentMessage>(getAskAgentUrl(agentId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(chatMessageInput)
+  }
+);}
+
+
+
+
+export const getAskAgentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof askAgent>>, TError,{agentId: string;data: BodyType<ChatMessageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof askAgent>>, TError,{agentId: string;data: BodyType<ChatMessageInput>}, TContext> => {
+
+const mutationKey = ['askAgent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof askAgent>>, {agentId: string;data: BodyType<ChatMessageInput>}> = (props) => {
+          const {agentId,data} = props ?? {};
+
+          return  askAgent(agentId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AskAgentMutationResult = NonNullable<Awaited<ReturnType<typeof askAgent>>>
+    export type AskAgentMutationBody = BodyType<ChatMessageInput>
+    export type AskAgentMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Ask a department agent a question directly
+ */
+export const useAskAgent = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof askAgent>>, TError,{agentId: string;data: BodyType<ChatMessageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof askAgent>>,
+        TError,
+        {agentId: string;data: BodyType<ChatMessageInput>},
+        TContext
+      > => {
+      return useMutation(getAskAgentMutationOptions(options));
+    }
+
 export const getGetRecentAgentActivityUrl = () => {
 
 

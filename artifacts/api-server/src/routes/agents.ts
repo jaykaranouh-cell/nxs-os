@@ -7,6 +7,11 @@ import {
   UpdateAgentTaskBody,
 } from "@workspace/api-zod";
 import { AGENTS, serializeAgent } from "../lib/orchestrator";
+import { runDepartmentAgent, sendAgentMessage } from "../lib/orchestrator/dispatch";
+import { loadContext } from "../lib/orchestrator/context";
+import { buildAgentBriefing } from "../lib/orchestrator/prompts";
+import { getRoster } from "../lib/orchestrator/roster";
+import { agentMessagesTable as msgTable } from "@workspace/db";
 
 const router = Router();
 
@@ -15,11 +20,13 @@ router.get("/agents", async (req, res) => {
   const tasks = await db.select().from(agentTasksTable).where(eq(agentTasksTable.status, "in_progress"));
   const logs = await db.select().from(agentLogsTable).orderBy(desc(agentLogsTable.timestamp)).limit(20);
 
+  const roster = await getRoster();
   const agents = AGENTS.map((agent) => {
     const agentTasks = tasks.filter((t) => t.agentId === agent.id);
     const latestLog = logs.find((l) => l.agentId === agent.id);
     return {
       ...serializeAgent(agent),
+      name: roster[agent.id] ?? agent.name,
       status: agentTasks.length > 0 ? "busy" : "active",
       activeTasks: agentTasks.length,
       currentTask: agentTasks[0]?.title ?? null,
@@ -52,6 +59,42 @@ router.get("/agents/activity/recent", async (req, res) => {
     .orderBy(desc(agentLogsTable.timestamp))
     .limit(50);
   res.json(logs.map(serializeLog));
+});
+
+// POST /agents/:agentId/ask — talk to a department agent directly
+router.post("/agents/:agentId/ask", async (req, res) => {
+  const { agentId } = req.params;
+  const agent = AGENTS.find((a) => a.id === agentId && a.id !== "orchestrator");
+  if (!agent) {
+    res.status(404).json({ error: "Agent not found" });
+    return;
+  }
+  const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
+  if (!content) {
+    res.status(400).json({ error: "content is required" });
+    return;
+  }
+
+  await sendAgentMessage("jay", "Jay", agentId, content);
+  const ctx = await loadContext();
+  const run = await runDepartmentAgent(
+    { agentId, task: `Jay is asking you directly. Answer him personally and conversationally, in your own voice: ${content}` },
+    buildAgentBriefing(ctx),
+    ""
+  );
+  if (!run) {
+    res.status(502).json({ error: "Agent failed to answer" });
+    return;
+  }
+  const [reply] = await db
+    .insert(msgTable)
+    .values({ fromAgentId: agentId, fromAgentName: run.agent.name, toAgentId: "jay", content: run.findings })
+    .returning();
+  res.json({
+    ...reply,
+    createdAt: reply.createdAt.toISOString(),
+    readAt: reply.readAt?.toISOString() ?? null,
+  });
 });
 
 // GET /agents/:agentId
