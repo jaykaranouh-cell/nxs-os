@@ -7,8 +7,7 @@ import {
   leadsTable,
 } from "@workspace/db";
 import { desc, eq, inArray } from "drizzle-orm";
-import { anthropic, CLAUDE_MODEL, messageText } from "@workspace/integrations-anthropic-server";
-import { recordUsage } from "../lib/orchestrator/telemetry";
+import { completeText } from "../lib/orchestrator/llm";
 
 const router = Router();
 
@@ -205,16 +204,16 @@ Constraints:
 - If data is thin, be honest. Do not pad with generic advice.
 - Be a Chief of Staff, not a report generator. Direct, specific, decisive.`;
 
-  const response = await anthropic.messages.create({
-    model: CLAUDE_MODEL,
-    max_tokens: 4000,
-    temperature: 0.35,
+  const completion = await completeText({
+    role: "brief",
+    scope: "brief",
     system: "Respond with a single valid JSON object only — no markdown fences, no surrounding text.",
-    messages: [{ role: "user", content: prompt }],
+    user: prompt,
+    maxTokens: 4000,
+    temperature: 0.35,
   });
 
-  recordUsage("brief", CLAUDE_MODEL, response.usage);
-  const raw = messageText(response).replace(/^```(?:json)?\s*|```\s*$/g, "").trim() || "{}";
+  const raw = completion.replace(/^```(?:json)?\s*|```\s*$/g, "").trim() || "{}";
   let brief: Record<string, unknown>;
   try {
     brief = JSON.parse(raw) as Record<string, unknown>;

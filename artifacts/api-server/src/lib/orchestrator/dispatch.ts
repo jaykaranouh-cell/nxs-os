@@ -1,8 +1,7 @@
 import { db, agentTasksTable, agentLogsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { anthropic, CLAUDE_MODEL, messageText } from "@workspace/integrations-anthropic-server";
 import { logger } from "../logger";
-import { recordUsage } from "./telemetry";
+import { completeText } from "./llm";
 import { DEPARTMENT_AGENTS, getAgent, type AgentDefinition } from "./agents";
 import type { OrchestratorContext } from "./context";
 import { buildAgentBriefing } from "./prompts";
@@ -49,16 +48,15 @@ function extractJson(text: string): string {
 
 export async function planDispatch(userMessage: string): Promise<Dispatch[]> {
   try {
-    const response = await anthropic.messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 1000,
-      output_config: { effort: "low" },
+    const text = await completeText({
+      role: "router",
+      scope: "router",
       system: ROUTER_PROMPT,
-      messages: [{ role: "user", content: userMessage }],
+      user: userMessage,
+      maxTokens: 1000,
+      effortLow: true,
     });
-
-    recordUsage("router", CLAUDE_MODEL, response.usage);
-    const raw = extractJson(messageText(response)) || "{}";
+    const raw = extractJson(text) || "{}";
     const parsed = JSON.parse(raw) as { dispatches?: Array<{ agent?: string; task?: string }> };
     const validIds = new Set(DEPARTMENT_AGENTS.map((a) => a.id));
 
@@ -89,26 +87,20 @@ async function runDepartmentAgent(
     .returning();
 
   try {
-    const response = await anthropic.messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 4000,
-      thinking: { type: "adaptive" },
-      // The shared briefing leads so all agent calls in a turn share one
-      // cached prompt prefix; the persona block varies per agent.
+    // The shared briefing leads so all agent calls in a turn share one
+    // cached prompt prefix (Anthropic); the persona block varies per agent.
+    const text = await completeText({
+      role: "agent",
+      scope: `agent:${agent.id}`,
       system: [
         { type: "text", text: briefing, cache_control: { type: "ephemeral" } },
         { type: "text", text: agent.systemPrompt },
       ],
-      messages: [
-        {
-          role: "user",
-          content: `Jay asked: "${userMessage}"\n\nYour task: ${dispatch.task}`,
-        },
-      ],
+      user: `Jay asked: "${userMessage}"\n\nYour task: ${dispatch.task}`,
+      maxTokens: 4000,
+      thinking: true,
     });
-
-    recordUsage(`agent:${agent.id}`, CLAUDE_MODEL, response.usage);
-    const findings = messageText(response).trim();
+    const findings = text.trim();
     if (!findings) throw new Error("Empty agent response");
 
     await Promise.all([

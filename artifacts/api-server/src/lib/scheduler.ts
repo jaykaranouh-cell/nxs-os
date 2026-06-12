@@ -7,12 +7,11 @@
 import cron from "node-cron";
 import { db, memoryEntriesTable, agentTasksTable, ideasTable } from "@workspace/db";
 import { and, desc, eq, gte, lt, or, sql } from "drizzle-orm";
-import { anthropic, CLAUDE_MODEL, messageText } from "@workspace/integrations-anthropic-server";
+import { completeText } from "./orchestrator/llm";
 import { generateBrief } from "../routes/morningBrief";
 import { DEPARTMENT_AGENTS } from "./orchestrator/agents";
 import { loadContext } from "./orchestrator/context";
 import { buildAgentBriefing } from "./orchestrator/prompts";
-import { recordUsage } from "./orchestrator/telemetry";
 import { runObsidianSync } from "./obsidian";
 import { logger } from "./logger";
 
@@ -80,22 +79,17 @@ async function weeklyIdeasJob() {
     if (recent) continue; // already proposed something this week
 
     try {
-      const response = await anthropic.messages.create({
-        model: CLAUDE_MODEL,
-        max_tokens: 800,
-        output_config: { effort: "low" },
+      const completion = await completeText({
+        role: "ideas",
+        scope: `scheduler:ideas:${agent.id}`,
         system: `${agent.systemPrompt}\n\n${briefing}`,
-        messages: [
-          {
-            role: "user",
-            content:
-              'Propose exactly ONE specific, high-leverage idea for Jay\'s business from your department\'s perspective, grounded in the data above. Respond with JSON only: {"title": "...", "description": "2-3 sentences", "category": "revenue|marketing|product|operations", "impact": "low|medium|high", "effort": "low|medium|high"}',
-          },
-        ],
+        user:
+          'Propose exactly ONE specific, high-leverage idea for Jay\'s business from your department\'s perspective, grounded in the data above. Respond with JSON only: {"title": "...", "description": "2-3 sentences", "category": "revenue|marketing|product|operations", "impact": "low|medium|high", "effort": "low|medium|high"}',
+        maxTokens: 800,
+        effortLow: true,
       });
-      recordUsage(`scheduler:ideas:${agent.id}`, CLAUDE_MODEL, response.usage);
 
-      const raw = messageText(response).replace(/^```(?:json)?\s*|```\s*$/g, "").trim();
+      const raw = completion.replace(/^```(?:json)?\s*|```\s*$/g, "").trim();
       const idea = JSON.parse(raw) as {
         title?: string; description?: string; category?: string; impact?: string; effort?: string;
       };

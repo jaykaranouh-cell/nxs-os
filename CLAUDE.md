@@ -13,6 +13,7 @@ A web-based AI business orchestration dashboard for Jay — a central command ce
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - `.claude/launch.json` has preview configs for both servers
+- `scripts/phone.sh` — Cloudflare quick tunnel for phone access (URL changes per run; Tailscale recommended for a permanent address). Requires NXS_ACCESS_TOKEN to be set
 
 ### Environment
 
@@ -24,6 +25,7 @@ Secrets live in the repo-root `.env` (gitignored; see `.env.example`):
 - `NXS_ACCESS_TOKEN` — optional; when set, all `/api` routes (except `/api/healthz`) require `Authorization: Bearer <token>` and the frontend shows an unlock screen
 - `OBSIDIAN_VAULT_PATH` — optional; enables the Obsidian bridge (default points at ~/Desktop/NXS-Brain)
 - `ELEVENLABS_API_KEY` (+ optional `ELEVENLABS_VOICE_ID`) — enables voice: Maya speaks replies (TTS) and the mic button dictates via ElevenLabs Scribe. `/api/voice/*` returns 503 without it
+- `OPENAI_API_KEY` + `LLM_<ROLE>` vars — per-role model routing through `src/lib/orchestrator/llm.ts` (roles: ROUTER, AGENT, CAPTURE, BRIEF, IDEAS, OBSIDIAN; format `provider:model`, e.g. `LLM_ROUTER=openai:gpt-4o-mini`). Unset roles default to anthropic:claude-opus-4-6. Tool-using chat synthesis is Anthropic-only
 
 The api-server loads the root `.env` via `node --env-file-if-exists`; drizzle-kit loads it from `lib/db/drizzle.config.ts`.
 
@@ -51,7 +53,7 @@ The api-server loads the root `.env` via `node --env-file-if-exists`; drizzle-ki
 
 - Agent definitions (CEO Orchestrator, Sales, Marketing, Research, Finance) live in `src/lib/orchestrator/agents.ts` (single source of truth, incl. per-agent system prompts) — they always exist and are never user-created
 - Chat is a real multi-agent pipeline on the Claude API (`@anthropic-ai/sdk`, `lib/integrations-anthropic-server`): a low-effort claude-opus-4-6 router decides which department agents to dispatch (0–3), each dispatched agent runs its own claude-opus-4-6 call with adaptive thinking in parallel and is logged to `agent_tasks` + `agent_logs`, then the orchestrator streams a CoS synthesis that integrates their reports. The shared business briefing leads every system prompt with `cache_control: ephemeral`, so agent calls and synthesis share one cached prefix (~90% cheaper repeated context). `agentActions` on chat messages reflect these real runs
-- Maya (the orchestrator) has write-tools (`src/lib/orchestrator/tools.ts`): create_memory_entry, update_lead_stage, create_agent_task, log_idea, update_opportunity. The chat synthesis runs a tool-use loop (max 5 rounds); executed actions stream to the UI as `action` SSE events and land in `agent_logs`. The Orchestrator page's execution level gates this: green/amber = tools enabled, red = propose-only (tools withheld, Maya phrases actions for approval)
+- Maya (the orchestrator) has write-tools (`src/lib/orchestrator/tools.ts`): create_memory_entry, update_lead_stage, create_agent_task, log_idea, update_opportunity. In Full Auto (green) she also gets computer tools: open_in_browser, open_app, fetch_webpage (execFile, no shell; http(s)-only URLs). The chat synthesis runs a tool-use loop (max 5 rounds); executed actions stream to the UI as `action` SSE events and land in `agent_logs`. The Orchestrator page's execution level gates this: green/amber = tools enabled, red = propose-only (tools withheld, Maya phrases actions for approval)
 - Auto-capture (`src/lib/orchestrator/capture.ts`): after every chat turn a low-effort extraction pass distills decisions/lessons/commitments into `memory_proposals`; Jay approves/rejects them in the queue at the top of the Memory Engine. Approval promotes a proposal to a real memory entry
 - Scheduler (`src/lib/scheduler.ts`, node-cron, server-local time): 07:00 morning brief generation, 07:30 risk watchdog (stale critical/needs-review items become high-priority orchestrator tasks), Monday 08:00 one proactive idea per department into the Ideas queue. LLM jobs no-op without ANTHROPIC_API_KEY
 - Obsidian bridge (`src/lib/obsidian.ts`, every 10 min + on boot): one-way ingest of 00-Inbox/ and 04-Meetings/ notes → extraction → memory proposals (max 3 notes/run, mtime-tracked in system_context); one-way mirror of all memory entries → 08-NXS-OS-Memory/*.md with frontmatter and [[wikilinks]] from memory_connections. Never two-way on the same file

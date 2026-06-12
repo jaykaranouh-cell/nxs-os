@@ -12,9 +12,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { db, memoryEntriesTable, memoryConnectionsTable, memoryProposalsTable, insertMemoryProposalSchema, systemContextTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { anthropic, CLAUDE_MODEL, messageText } from "@workspace/integrations-anthropic-server";
+import { completeText } from "./orchestrator/llm";
 import { z } from "zod/v4";
-import { recordUsage } from "./orchestrator/telemetry";
 import { logger } from "./logger";
 
 const INGEST_FOLDERS = ["00-Inbox", "04-Meetings"];
@@ -71,16 +70,16 @@ async function ingestNote(vault: string, relPath: string): Promise<number> {
   const text = (await fs.readFile(path.join(vault, relPath), "utf8")).slice(0, MAX_NOTE_CHARS);
   if (text.trim().length < 60) return 0; // empty or template stub
 
-  const response = await anthropic.messages.create({
-    model: CLAUDE_MODEL,
-    max_tokens: 1200,
-    output_config: { effort: "low" },
+  const completion = await completeText({
+    role: "obsidian",
+    scope: "obsidian:ingest",
     system: NOTE_EXTRACTION_PROMPT,
-    messages: [{ role: "user", content: `Note path: ${relPath}\n\n${text}` }],
+    user: `Note path: ${relPath}\n\n${text}`,
+    maxTokens: 1200,
+    effortLow: true,
   });
-  recordUsage("obsidian:ingest", CLAUDE_MODEL, response.usage);
 
-  const raw = messageText(response).replace(/^```(?:json)?\s*|```\s*$/g, "").trim() || "{}";
+  const raw = completion.replace(/^```(?:json)?\s*|```\s*$/g, "").trim() || "{}";
   const parsed = noteProposalsSchema.safeParse(JSON.parse(raw));
   if (!parsed.success || parsed.data.proposals.length === 0) return 0;
 

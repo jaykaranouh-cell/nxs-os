@@ -16,6 +16,7 @@ import {
 } from "../lib/orchestrator";
 import {
   TOOL_DEFINITIONS,
+  COMPUTER_TOOL_DEFINITIONS,
   TOOL_GUIDANCE,
   PROPOSE_ONLY_GUIDANCE,
   executeTool,
@@ -68,7 +69,7 @@ async function runSynthesis(opts: {
   system: ReturnType<typeof buildSystemBlocks>;
   history: ChatHistory;
   content: string;
-  toolsEnabled: boolean;
+  tools: typeof TOOL_DEFINITIONS;
   onText?: (delta: string) => void;
   onAction?: (event: ToolEvent & { error?: boolean }) => void;
 }): Promise<{ text: string; toolEvents: ToolEvent[] }> {
@@ -86,7 +87,7 @@ async function runSynthesis(opts: {
       thinking: { type: "adaptive" },
       system: opts.system,
       messages,
-      ...(opts.toolsEnabled ? { tools: TOOL_DEFINITIONS } : {}),
+      ...(opts.tools.length ? { tools: opts.tools } : {}),
     });
 
     for await (const event of stream) {
@@ -142,6 +143,12 @@ async function saveOrchestratorMessage(content: string, agentActions: AgentActio
   return msg;
 }
 
+function toolsForLevel(level: ExecutionLevel): typeof TOOL_DEFINITIONS {
+  if (level === "red") return [];
+  // Computer control (apps, browser, web fetch) requires Full Auto.
+  return level === "green" ? [...TOOL_DEFINITIONS, ...COMPUTER_TOOL_DEFINITIONS] : TOOL_DEFINITIONS;
+}
+
 function parseLevel(level: string | undefined): ExecutionLevel {
   return level === "green" || level === "red" ? level : "amber";
 }
@@ -183,12 +190,12 @@ router.post("/chat/messages", async (req, res) => {
   } else {
     try {
       const runs = await runDispatches(await planDispatch(content), ctx, content);
-      const toolsEnabled = level !== "red";
+      const tools = toolsForLevel(level);
       const { text, toolEvents } = await runSynthesis({
-        system: buildSystemBlocks(ctx, runs, toolsEnabled ? TOOL_GUIDANCE : PROPOSE_ONLY_GUIDANCE),
+        system: buildSystemBlocks(ctx, runs, tools.length ? TOOL_GUIDANCE : PROPOSE_ONLY_GUIDANCE),
         history,
         content,
-        toolsEnabled,
+        tools,
       });
       response = text || FALLBACK_RESPONSE;
       agentActions = buildActions(runs, toolEvents);
@@ -255,12 +262,12 @@ router.post("/chat/stream", async (req, res) => {
       sendEvent(res, { agentDone: { agentId: run.agent.id, agentName: run.agent.name } });
     });
 
-    const toolsEnabled = level !== "red";
+    const tools = toolsForLevel(level);
     const { text, toolEvents } = await runSynthesis({
-      system: buildSystemBlocks(ctx, runs, toolsEnabled ? TOOL_GUIDANCE : PROPOSE_ONLY_GUIDANCE),
+      system: buildSystemBlocks(ctx, runs, tools.length ? TOOL_GUIDANCE : PROPOSE_ONLY_GUIDANCE),
       history,
       content,
-      toolsEnabled,
+      tools,
       onText: (delta) => sendEvent(res, { content: delta }),
       onAction: (event) => sendEvent(res, { action: event }),
     });

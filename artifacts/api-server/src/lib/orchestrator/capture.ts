@@ -5,10 +5,9 @@
  */
 
 import { db, memoryProposalsTable, insertMemoryProposalSchema } from "@workspace/db";
-import { anthropic, CLAUDE_MODEL, messageText } from "@workspace/integrations-anthropic-server";
+import { completeText } from "./llm";
 import { z } from "zod/v4";
 import { logger } from "../logger";
-import { recordUsage } from "./telemetry";
 
 const EXTRACTION_PROMPT = `You extract durable business memory from a conversation turn between Jay (founder) and his AI Chief of Staff.
 
@@ -48,25 +47,20 @@ export function captureMemoryFromTurn(
 
   void (async () => {
     try {
-      const completion = await anthropic.messages.create({
-        model: CLAUDE_MODEL,
-        max_tokens: 1000,
-        output_config: { effort: "low" },
+      const text = await completeText({
+        role: "capture",
+        scope: "capture",
         system: EXTRACTION_PROMPT,
-        messages: [
-          {
-            role: "user",
-            content: `Jay said:\n${userMessage}\n\nChief of Staff replied:\n${response}${
-              alreadySaved.length
-                ? `\n\nAlready saved to memory this turn (do NOT propose these again):\n${alreadySaved.map((s) => `- ${s}`).join("\n")}`
-                : ""
-            }`,
-          },
-        ],
+        user: `Jay said:\n${userMessage}\n\nChief of Staff replied:\n${response}${
+          alreadySaved.length
+            ? `\n\nAlready saved to memory this turn (do NOT propose these again):\n${alreadySaved.map((s) => `- ${s}`).join("\n")}`
+            : ""
+        }`,
+        maxTokens: 1000,
+        effortLow: true,
       });
-      recordUsage("capture", CLAUDE_MODEL, completion.usage);
 
-      const parsed = proposalsSchema.safeParse(JSON.parse(extractJson(messageText(completion)) || "{}"));
+      const parsed = proposalsSchema.safeParse(JSON.parse(extractJson(text) || "{}"));
       if (!parsed.success || parsed.data.proposals.length === 0) return;
 
       const rows = parsed.data.proposals.map((p) =>

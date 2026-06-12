@@ -17,6 +17,8 @@ import {
   opportunitiesTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import type { Anthropic } from "@workspace/integrations-anthropic-server";
 import { DEPARTMENT_AGENTS, getAgent } from "./agents";
 
@@ -267,11 +269,107 @@ const updateOpportunity = {
   },
 };
 
+// ─── Computer tools (Full Auto / green mode only) ─────────────────────────────
+
+const execFileAsync = promisify(execFile);
+
+function assertHttpUrl(raw: string): URL {
+  const url = new URL(raw);
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("Only http(s) URLs are allowed");
+  }
+  return url;
+}
+
+const openInBrowserSchema = z.object({ url: z.string().min(1) });
+
+const openInBrowser = {
+  definition: {
+    name: "open_in_browser",
+    description:
+      "Open a URL in Jay's default browser on his Mac. Use when Jay should look at something: a website, a doc, a dashboard.",
+    input_schema: {
+      type: "object" as const,
+      properties: { url: { type: "string", description: "http(s) URL to open" } },
+      required: ["url"],
+    },
+  },
+  schema: openInBrowserSchema,
+  async run(input: z.infer<typeof openInBrowserSchema>): Promise<string> {
+    const url = assertHttpUrl(input.url);
+    await execFileAsync("open", [url.toString()]);
+    await logAction("Opened in browser", url.toString());
+    return `Opened ${url.hostname} in Jay's browser`;
+  },
+};
+
+const openAppSchema = z.object({ app: z.string().regex(/^[A-Za-z0-9 .\-]{2,40}$/, "Invalid app name") });
+
+const openApp = {
+  definition: {
+    name: "open_app",
+    description:
+      "Open a macOS application on Jay's Mac by name (e.g. 'Obsidian', 'Notes', 'Calendar', 'Finder').",
+    input_schema: {
+      type: "object" as const,
+      properties: { app: { type: "string", description: "Application name" } },
+      required: ["app"],
+    },
+  },
+  schema: openAppSchema,
+  async run(input: z.infer<typeof openAppSchema>): Promise<string> {
+    await execFileAsync("open", ["-a", input.app]);
+    await logAction("Opened app", input.app);
+    return `Opened ${input.app}`;
+  },
+};
+
+const fetchWebpageSchema = z.object({ url: z.string().min(1) });
+
+const fetchWebpage = {
+  definition: {
+    name: "fetch_webpage",
+    description:
+      "Fetch a webpage and return its readable text (server-side, nothing opens on screen). Use for research: checking a prospect's site, reading an article, verifying a claim.",
+    input_schema: {
+      type: "object" as const,
+      properties: { url: { type: "string", description: "http(s) URL to read" } },
+      required: ["url"],
+    },
+  },
+  schema: fetchWebpageSchema,
+  async run(input: z.infer<typeof fetchWebpageSchema>): Promise<string> {
+    const url = assertHttpUrl(input.url);
+    const resp = await fetch(url, {
+      redirect: "follow",
+      signal: AbortSignal.timeout(15_000),
+      headers: { "User-Agent": "Mozilla/5.0 (NXS-OS research agent)" },
+    });
+    if (!resp.ok) throw new Error(`Fetch failed: HTTP ${resp.status}`);
+    const html = await resp.text();
+    const text = html
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&[a-z#0-9]+;/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 4000);
+    await logAction("Fetched webpage", url.toString());
+    return `Content of ${url.toString()}:\n${text || "(no readable text found)"}`;
+  },
+};
+
+const COMPUTER_TOOLS = [openInBrowser, openApp, fetchWebpage];
+
+export const COMPUTER_TOOL_DEFINITIONS: Anthropic.Tool[] = COMPUTER_TOOLS.map((t) => t.definition);
+
 // ─── Registry ─────────────────────────────────────────────────────────────────
 
-const TOOLS = [createMemoryEntry, updateLeadStage, createAgentTask, logIdea, updateOpportunity];
+const BASE_TOOLS = [createMemoryEntry, updateLeadStage, createAgentTask, logIdea, updateOpportunity];
+const TOOLS = [...BASE_TOOLS, ...COMPUTER_TOOLS];
 
-export const TOOL_DEFINITIONS: Anthropic.Tool[] = TOOLS.map((t) => t.definition);
+export const TOOL_DEFINITIONS: Anthropic.Tool[] = BASE_TOOLS.map((t) => t.definition);
 
 /** Execute one tool call. Returns the result string (or throws). */
 export async function executeTool(name: string, input: unknown): Promise<string> {
@@ -283,7 +381,7 @@ export async function executeTool(name: string, input: unknown): Promise<string>
 }
 
 export const TOOL_GUIDANCE = `## Taking Action
-You can act on the system directly with your tools (save memory, move leads, create tasks, log ideas, update opportunities). When Jay reports something that changes the state of the business, record it with the appropriate tool rather than only describing what he should do. Use tools sparingly and precisely — only for real state changes, never speculatively.`;
+You can act on the system directly with your tools (save memory, move leads, create tasks, log ideas, update opportunities). When Jay reports something that changes the state of the business, record it with the appropriate tool rather than only describing what he should do. Use tools sparingly and precisely — only for real state changes, never speculatively. If you also have computer tools (open apps, open the browser, fetch webpages), they act on Jay's actual Mac: use them when Jay asks or when showing him something beats describing it.`;
 
 export const PROPOSE_ONLY_GUIDANCE = `## Proposing Action (manual approval mode)
 You cannot execute changes right now — Jay has execution set to manual approval. When the conversation implies a state change (a memory worth saving, a lead to move, a task to create), end your Next Move with the specific action you WOULD take, phrased so Jay can approve it.`;

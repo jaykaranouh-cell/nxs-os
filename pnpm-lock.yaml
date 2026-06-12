@@ -171,6 +171,9 @@ importers:
       '@workspace/integrations-anthropic-server':
         specifier: workspace:*
         version: link:../../lib/integrations-anthropic-server
+      '@workspace/integrations-openai-ai-server':
+        specifier: workspace:*
+        version: link:../../lib/integrations-openai-ai-server
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
