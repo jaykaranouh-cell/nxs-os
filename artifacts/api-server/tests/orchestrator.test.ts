@@ -9,6 +9,7 @@ import type { OrchestratorContext } from "../src/lib/orchestrator/context";
 function makeCtx(overrides: Partial<OrchestratorContext> = {}): OrchestratorContext {
   return {
     brain: null,
+    teamMessages: [],
     goals: [],
     decisions: [],
     lessons: [],

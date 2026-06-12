@@ -1,5 +1,8 @@
-import { db, agentTasksTable, agentLogsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, agentTasksTable, agentLogsTable, agentMessagesTable } from "@workspace/db";
+import { desc, eq, inArray } from "drizzle-orm";
+import { anthropic, messageText, type Anthropic } from "@workspace/integrations-anthropic-server";
+import { recordUsage } from "./telemetry";
+import { choiceFor } from "./llm";
 import { logger } from "../logger";
 import { completeText } from "./llm";
 import { DEPARTMENT_AGENTS, getAgent, type AgentDefinition } from "./agents";
@@ -73,10 +76,81 @@ export async function planDispatch(userMessage: string): Promise<Dispatch[]> {
   }
 }
 
+// ─── Inter-agent communication ────────────────────────────────────────────────
+
+/** Deliver unread mailbox messages for an agent and mark them read. */
+async function collectMailbox(agentId: string): Promise<string> {
+  const rows = await db
+    .select()
+    .from(agentMessagesTable)
+    .where(inArray(agentMessagesTable.toAgentId, [agentId, "all"]))
+    .orderBy(desc(agentMessagesTable.createdAt))
+    .limit(8);
+  if (!rows.length) return "";
+  const unreadIds = rows.filter((m) => !m.readAt && m.toAgentId === agentId).map((m) => m.id);
+  if (unreadIds.length) {
+    await db.update(agentMessagesTable).set({ readAt: new Date() }).where(inArray(agentMessagesTable.id, unreadIds)).catch(() => {});
+  }
+  return `\n\n## Messages from your team\n${rows
+    .reverse()
+    .map((m) => `- ${m.fromAgentName} → ${m.toAgentId === "all" ? "everyone" : "you"}: ${m.content}`)
+    .join("\n")}`;
+}
+
+export async function sendAgentMessage(
+  fromAgentId: string,
+  fromAgentName: string,
+  toAgentId: string,
+  content: string
+): Promise<void> {
+  await db.insert(agentMessagesTable).values({ fromAgentId, fromAgentName, toAgentId, content });
+  await db.insert(agentLogsTable).values({
+    agentId: fromAgentId,
+    agentName: fromAgentName,
+    action: `Message to ${toAgentId === "all" ? "the whole team" : toAgentId}`,
+    details: content,
+  });
+}
+
+const MAX_AGENT_ROUNDS = 3;
+
+function agentCommTools(selfId: string): Anthropic.Tool[] {
+  const others = DEPARTMENT_AGENTS.map((a) => a.id).filter((id) => id !== selfId);
+  return [
+    {
+      name: "ask_agent",
+      description:
+        "Consult another department agent right now and get their answer before finishing your findings. Use when their domain materially affects your conclusion.",
+      input_schema: {
+        type: "object",
+        properties: {
+          agentId: { type: "string", enum: others },
+          question: { type: "string", description: "One specific question for them" },
+        },
+        required: ["agentId", "question"],
+      },
+    },
+    {
+      name: "send_message",
+      description:
+        "Leave a note for another agent (or 'all' for the whole team, or 'orchestrator' for Maya). Delivered with their next briefing. Use for heads-ups and follow-ups that matter beyond this task.",
+      input_schema: {
+        type: "object",
+        properties: {
+          to: { type: "string", enum: [...others, "orchestrator", "all"] },
+          content: { type: "string" },
+        },
+        required: ["to", "content"],
+      },
+    },
+  ];
+}
+
 export async function runDepartmentAgent(
   dispatch: Dispatch,
   briefing: string,
-  userMessage: string
+  userMessage: string,
+  depth = 0
 ): Promise<AgentRun | null> {
   const agent = getAgent(dispatch.agentId);
   if (!agent) return null;
@@ -87,22 +161,105 @@ export async function runDepartmentAgent(
     .returning();
 
   try {
-    // The shared briefing leads so all agent calls in a turn share one
-    // cached prompt prefix (Anthropic); the persona block varies per agent.
-    const text = await completeText({
-      role: "agent",
-      scope: `agent:${agent.id}`,
-      system: [
-        { type: "text", text: briefing, cache_control: { type: "ephemeral" } },
-        { type: "text", text: agent.systemPrompt },
-      ],
-      user: userMessage
-        ? `Jay asked: "${userMessage}"\n\nYour task: ${dispatch.task}`
-        : `Maya (the orchestrator) dispatched you directly.\n\nYour task: ${dispatch.task}`,
-      maxTokens: 4000,
-      thinking: true,
-    });
-    const findings = text.trim();
+    const mailbox = await collectMailbox(agent.id);
+    const user = userMessage
+      ? `Jay asked: "${userMessage}"\n\nYour task: ${dispatch.task}`
+      : `Maya (the orchestrator) dispatched you directly.\n\nYour task: ${dispatch.task}`;
+
+    // Comms tools need the Anthropic tool loop; consulted agents (depth>0)
+    // and OpenAI-routed agents run single-shot to bound cost and recursion.
+    const useTools = depth === 0 && choiceFor("agent").provider === "anthropic";
+    let findings: string;
+
+    if (!useTools) {
+      findings = (
+        await completeText({
+          role: "agent",
+          scope: `agent:${agent.id}`,
+          system: [
+            { type: "text", text: briefing, cache_control: { type: "ephemeral" } },
+            { type: "text", text: agent.systemPrompt + mailbox },
+          ],
+          user,
+          maxTokens: 4000,
+          thinking: true,
+        })
+      ).trim();
+    } else {
+      const model = choiceFor("agent").model;
+      const tools = agentCommTools(agent.id);
+      const messages: Anthropic.MessageParam[] = [{ role: "user", content: user }];
+      findings = "";
+      for (let round = 0; round < MAX_AGENT_ROUNDS; round++) {
+        const response = await anthropic.messages.create({
+          model,
+          max_tokens: 4000,
+          thinking: { type: "adaptive" },
+          system: [
+            { type: "text", text: briefing, cache_control: { type: "ephemeral" } },
+            {
+              type: "text",
+              text:
+                agent.systemPrompt +
+                mailbox +
+                "\n\nYou can consult teammates with ask_agent and leave notes with send_message. Consult at most one teammate, only when their domain materially changes your answer.",
+            },
+          ],
+          messages,
+          tools,
+        });
+        recordUsage(`agent:${agent.id}`, model, response.usage);
+        findings = response.content
+          .filter((b): b is Anthropic.TextBlock => b.type === "text")
+          .map((b) => b.text)
+          .join("")
+          .trim();
+        if (response.stop_reason !== "tool_use") break;
+
+        messages.push({ role: "assistant", content: response.content });
+        const results: Anthropic.ToolResultBlockParam[] = [];
+        for (const block of response.content) {
+          if (block.type !== "tool_use") continue;
+          try {
+            if (block.name === "ask_agent") {
+              const input = block.input as { agentId: string; question: string };
+              const consulted = await runDepartmentAgent(
+                { agentId: input.agentId, task: input.question },
+                briefing,
+                "",
+                depth + 1
+              );
+              await db.insert(agentLogsTable).values({
+                agentId: agent.id,
+                agentName: agent.name,
+                action: `Consulted ${consulted?.agent.name ?? input.agentId}`,
+                details: input.question,
+              });
+              results.push({
+                type: "tool_result",
+                tool_use_id: block.id,
+                content: consulted ? `${consulted.agent.name}: ${consulted.findings}` : "No answer available",
+              });
+            } else if (block.name === "send_message") {
+              const input = block.input as { to: string; content: string };
+              await sendAgentMessage(agent.id, agent.name, input.to, input.content);
+              results.push({ type: "tool_result", tool_use_id: block.id, content: `Message left for ${input.to}` });
+            } else {
+              results.push({ type: "tool_result", tool_use_id: block.id, content: "Unknown tool", is_error: true });
+            }
+          } catch (err) {
+            results.push({
+              type: "tool_result",
+              tool_use_id: block.id,
+              content: `Error: ${err instanceof Error ? err.message : "failed"}`,
+              is_error: true,
+            });
+          }
+        }
+        messages.push({ role: "user", content: results });
+      }
+    }
+
     if (!findings) throw new Error("Empty agent response");
 
     await Promise.all([

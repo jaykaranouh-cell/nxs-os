@@ -3,6 +3,7 @@ import {
   memoryEntriesTable,
   opportunitiesTable,
   systemContextTable,
+  agentMessagesTable,
 } from "@workspace/db";
 import { desc, inArray } from "drizzle-orm";
 
@@ -58,8 +59,15 @@ export const DEFAULT_MAYA: BrainMaya = {
 export type MemRow = typeof memoryEntriesTable.$inferSelect;
 export type OppRow = typeof opportunitiesTable.$inferSelect;
 
+export interface TeamMessage {
+  fromAgentName: string;
+  toAgentId: string;
+  content: string;
+}
+
 export interface OrchestratorContext {
   brain: BrainData | null;
+  teamMessages: TeamMessage[];
   goals: MemRow[];
   decisions: MemRow[];
   lessons: MemRow[];
@@ -95,7 +103,7 @@ const MEMORY_LIMIT = 400;
 const OPPS_LIMIT = 150;
 
 export async function loadContext(): Promise<OrchestratorContext> {
-  const [allMemory, allOpps, ctxRows] = await Promise.all([
+  const [allMemory, allOpps, ctxRows, teamRows] = await Promise.all([
     db
       .select()
       .from(memoryEntriesTable)
@@ -107,6 +115,12 @@ export async function loadContext(): Promise<OrchestratorContext> {
       .orderBy(desc(opportunitiesTable.updatedAt))
       .limit(OPPS_LIMIT),
     db.select().from(systemContextTable).where(inArray(systemContextTable.key, CONTEXT_KEYS)),
+    db
+      .select()
+      .from(agentMessagesTable)
+      .where(inArray(agentMessagesTable.toAgentId, ["orchestrator", "all"]))
+      .orderBy(desc(agentMessagesTable.createdAt))
+      .limit(8),
   ]);
 
   let brain: BrainData | null = null;
@@ -148,6 +162,11 @@ export async function loadContext(): Promise<OrchestratorContext> {
 
   return {
     brain,
+    teamMessages: teamRows.reverse().map((m) => ({
+      fromAgentName: m.fromAgentName,
+      toAgentId: m.toAgentId,
+      content: m.content,
+    })),
     goals,
     decisions,
     lessons,

@@ -21,7 +21,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { Anthropic } from "@workspace/integrations-anthropic-server";
 import { DEPARTMENT_AGENTS, getAgent } from "./agents";
-import { runDepartmentAgent } from "./dispatch";
+import { runDepartmentAgent, sendAgentMessage } from "./dispatch";
 import { loadContext } from "./context";
 import { buildAgentBriefing } from "./prompts";
 import { completeText } from "./llm";
@@ -275,6 +275,33 @@ const updateOpportunity = {
 
 // ─── Agent tools: Maya commands her own team ──────────────────────────────────
 
+const messageTeamSchema = z.object({
+  to: z.enum(["sales", "marketing", "research", "finance", "all"]),
+  content: z.string().min(5),
+});
+
+const messageTeam = {
+  definition: {
+    name: "message_team",
+    description:
+      "Leave a note for a department agent (or 'all' for the whole team). Delivered with their next briefing. Use for standing context, heads-ups, and follow-ups they should know about next time they run.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        to: { type: "string", enum: ["sales", "marketing", "research", "finance", "all"] },
+        content: { type: "string" },
+      },
+      required: ["to", "content"],
+    },
+  },
+  schema: messageTeamSchema,
+  async run(input: z.infer<typeof messageTeamSchema>): Promise<string> {
+    await sendAgentMessage("orchestrator", "Maya", input.to, input.content);
+    return `Note left for ${input.to === "all" ? "the whole team" : input.to}`;
+  },
+};
+
+
 const dispatchAgentSchema = z.object({
   agentId: z.enum(["sales", "marketing", "research", "finance"]),
   task: z.string().min(10),
@@ -461,7 +488,7 @@ export const COMPUTER_TOOL_DEFINITIONS: Anthropic.Tool[] = COMPUTER_TOOLS.map((t
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 
-const BASE_TOOLS = [createMemoryEntry, updateLeadStage, createAgentTask, logIdea, updateOpportunity, dispatchAgent, spawnAgent];
+const BASE_TOOLS = [createMemoryEntry, updateLeadStage, createAgentTask, logIdea, updateOpportunity, dispatchAgent, spawnAgent, messageTeam];
 const TOOLS = [...BASE_TOOLS, ...COMPUTER_TOOLS];
 
 export const TOOL_DEFINITIONS: Anthropic.Tool[] = BASE_TOOLS.map((t) => t.definition);

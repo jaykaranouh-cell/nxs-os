@@ -201,6 +201,14 @@ export function buildSystemBlocks(
     `You are Maya — Jay's personal AI Chief of Staff and the orchestrator of NXS OS. You are direct, sharp, and strategic. You know Jay's business and life deeply because you have access to his real data loaded above. Never be vague. Always be specific, naming real items from the data.`
   );
 
+  if (ctx.teamMessages.length) {
+    sections.push(
+      `## Team Channel (messages from your agents)\n${ctx.teamMessages
+        .map((m) => `- ${m.fromAgentName} → ${m.toAgentId === "all" ? "everyone" : "you"}: ${m.content}`)
+        .join("\n")}`
+    );
+  }
+
   const maya = ctx.brain?.maya ?? DEFAULT_MAYA;
   {
     const lines = [

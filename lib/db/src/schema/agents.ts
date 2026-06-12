@@ -25,6 +25,19 @@ export const agentLogsTable = pgTable("agent_logs", {
   timestamp: timestamp("timestamp").defaultNow().notNull(),
 });
 
+/** Inter-agent mailbox: notes agents leave for each other across turns. */
+export const agentMessagesTable = pgTable("agent_messages", {
+  id: serial("id").primaryKey(),
+  fromAgentId: text("from_agent_id").notNull(),
+  fromAgentName: text("from_agent_name").notNull(),
+  toAgentId: text("to_agent_id").notNull(), // department id | "orchestrator" | "all"
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  readAt: timestamp("read_at"),
+});
+
+export type AgentMessage = typeof agentMessagesTable.$inferSelect;
+
 export const insertAgentTaskSchema = createInsertSchema(agentTasksTable).omit({ id: true, createdAt: true });
 export type InsertAgentTask = z.infer<typeof insertAgentTaskSchema>;
 export type AgentTask = typeof agentTasksTable.$inferSelect;
