@@ -2,7 +2,7 @@ import { Router, type Response } from "express";
 import { db, chatMessagesTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
 import { SendChatMessageBody } from "@workspace/api-zod";
-import { anthropic, CLAUDE_MODEL, messageText } from "@workspace/integrations-anthropic-server";
+import { anthropic, CLAUDE_MODEL, type Anthropic } from "@workspace/integrations-anthropic-server";
 import {
   loadContext,
   checkRuleViolations,
@@ -12,9 +12,18 @@ import {
   toAgentActions,
   getAgent,
   type AgentAction,
-  type AgentRun,
   type OrchestratorContext,
 } from "../lib/orchestrator";
+import {
+  TOOL_DEFINITIONS,
+  TOOL_GUIDANCE,
+  PROPOSE_ONLY_GUIDANCE,
+  executeTool,
+  type ExecutionLevel,
+  type ToolEvent,
+} from "../lib/orchestrator/tools";
+import { recordUsage } from "../lib/orchestrator/telemetry";
+import { captureMemoryFromTurn } from "../lib/orchestrator/capture";
 
 const router = Router();
 
@@ -22,6 +31,8 @@ type ChatHistory = Array<{ role: "user" | "assistant"; content: string }>;
 
 const FALLBACK_RESPONSE =
   "**Situation:** I hit an error generating your response.\n**Priority:** Retry your message.\n**Risk:** Unknown.\n**Recommendation:** Please try again in a moment.\n**Confidence: 0%** — error occurred.\n**Next Move:** Resend your message.";
+
+const MAX_TOOL_ROUNDS = 5;
 
 // ─── Shared turn pipeline ─────────────────────────────────────────────────────
 
@@ -49,16 +60,78 @@ async function setupTurn(content: string, userMsgId: number): Promise<TurnSetup>
   return { ctx, history, violation: checkRuleViolations(content, ctx) };
 }
 
-async function dispatchAgents(content: string, ctx: OrchestratorContext): Promise<AgentRun[]> {
-  const dispatches = await planDispatch(content);
-  return runDispatches(dispatches, ctx, content);
+/**
+ * Synthesis with a tool-use loop. Streams text via onText, reports executed
+ * actions via onAction, and returns the final text plus all tool events.
+ */
+async function runSynthesis(opts: {
+  system: ReturnType<typeof buildSystemBlocks>;
+  history: ChatHistory;
+  content: string;
+  toolsEnabled: boolean;
+  onText?: (delta: string) => void;
+  onAction?: (event: ToolEvent & { error?: boolean }) => void;
+}): Promise<{ text: string; toolEvents: ToolEvent[] }> {
+  const messages: Anthropic.MessageParam[] = [
+    ...opts.history,
+    { role: "user", content: opts.content },
+  ];
+  const toolEvents: ToolEvent[] = [];
+  let text = "";
+
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    const stream = anthropic.messages.stream({
+      model: CLAUDE_MODEL,
+      max_tokens: 16000,
+      thinking: { type: "adaptive" },
+      system: opts.system,
+      messages,
+      ...(opts.toolsEnabled ? { tools: TOOL_DEFINITIONS } : {}),
+    });
+
+    for await (const event of stream) {
+      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+        text += event.delta.text;
+        opts.onText?.(event.delta.text);
+      }
+    }
+
+    const final = await stream.finalMessage();
+    recordUsage("synthesis", CLAUDE_MODEL, final.usage);
+
+    if (final.stop_reason !== "tool_use") break;
+
+    // Execute every requested tool, then continue the loop with results.
+    messages.push({ role: "assistant", content: final.content });
+    const results: Anthropic.ToolResultBlockParam[] = [];
+    for (const block of final.content) {
+      if (block.type !== "tool_use") continue;
+      try {
+        const summary = await executeTool(block.name, block.input);
+        toolEvents.push({ tool: block.name, summary });
+        opts.onAction?.({ tool: block.name, summary });
+        results.push({ type: "tool_result", tool_use_id: block.id, content: summary });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "tool failed";
+        opts.onAction?.({ tool: block.name, summary: msg, error: true });
+        results.push({ type: "tool_result", tool_use_id: block.id, content: `Error: ${msg}`, is_error: true });
+      }
+    }
+    messages.push({ role: "user", content: results });
+  }
+
+  return { text, toolEvents };
 }
 
-function buildMessages(
-  history: ChatHistory,
-  content: string
-): Array<{ role: "user" | "assistant"; content: string }> {
-  return [...history, { role: "user", content }];
+function buildActions(
+  runs: Awaited<ReturnType<typeof runDispatches>>,
+  toolEvents: ToolEvent[]
+): AgentAction[] {
+  const actions = toAgentActions(runs);
+  for (const e of toolEvents) {
+    actions.push({ agentId: "orchestrator", agentName: "Maya", action: e.tool, result: e.summary });
+  }
+  return actions;
 }
 
 async function saveOrchestratorMessage(content: string, agentActions: AgentAction[]) {
@@ -67,6 +140,10 @@ async function saveOrchestratorMessage(content: string, agentActions: AgentActio
     .values({ role: "orchestrator", content, agentActions: JSON.stringify(agentActions) })
     .returning();
   return msg;
+}
+
+function parseLevel(level: string | undefined): ExecutionLevel {
+  return level === "green" || level === "red" ? level : "amber";
 }
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
@@ -88,6 +165,7 @@ router.post("/chat/messages", async (req, res) => {
     return;
   }
   const { content } = parsed.data;
+  const level = parseLevel(parsed.data.executionLevel);
 
   const [userMsg] = await db
     .insert(chatMessagesTable)
@@ -104,16 +182,16 @@ router.post("/chat/messages", async (req, res) => {
     agentActions = violationActions();
   } else {
     try {
-      const runs = await dispatchAgents(content, ctx);
-      const message = await anthropic.messages.create({
-        model: CLAUDE_MODEL,
-        max_tokens: 16000,
-        thinking: { type: "adaptive" },
-        system: buildSystemBlocks(ctx, runs),
-        messages: buildMessages(history, content),
+      const runs = await runDispatches(await planDispatch(content), ctx, content);
+      const toolsEnabled = level !== "red";
+      const { text, toolEvents } = await runSynthesis({
+        system: buildSystemBlocks(ctx, runs, toolsEnabled ? TOOL_GUIDANCE : PROPOSE_ONLY_GUIDANCE),
+        history,
+        content,
+        toolsEnabled,
       });
-      response = messageText(message) || FALLBACK_RESPONSE;
-      agentActions = toAgentActions(runs);
+      response = text || FALLBACK_RESPONSE;
+      agentActions = buildActions(runs, toolEvents);
     } catch (err) {
       req.log.error(err, "Chat completion error");
       response = FALLBACK_RESPONSE;
@@ -122,6 +200,7 @@ router.post("/chat/messages", async (req, res) => {
   }
 
   const orchMsg = await saveOrchestratorMessage(response, agentActions);
+  captureMemoryFromTurn(content, response, orchMsg.id);
 
   res.status(201).json({
     userMessage: serializeMessage(userMsg),
@@ -137,6 +216,7 @@ router.post("/chat/stream", async (req, res) => {
     return;
   }
   const { content } = parsed.data;
+  const level = parseLevel(parsed.data.executionLevel);
 
   const [userMsg] = await db
     .insert(chatMessagesTable)
@@ -171,26 +251,24 @@ router.post("/chat/stream", async (req, res) => {
         })),
       });
     }
-    const runs = await runDispatches(dispatches, ctx, content);
-    const actions = toAgentActions(runs);
-
-    const stream = anthropic.messages.stream({
-      model: CLAUDE_MODEL,
-      max_tokens: 16000,
-      thinking: { type: "adaptive" },
-      system: buildSystemBlocks(ctx, runs),
-      messages: buildMessages(history, content),
+    const runs = await runDispatches(dispatches, ctx, content, (run) => {
+      sendEvent(res, { agentDone: { agentId: run.agent.id, agentName: run.agent.name } });
     });
 
-    let fullResponse = "";
-    for await (const event of stream) {
-      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-        fullResponse += event.delta.text;
-        sendEvent(res, { content: event.delta.text });
-      }
-    }
+    const toolsEnabled = level !== "red";
+    const { text, toolEvents } = await runSynthesis({
+      system: buildSystemBlocks(ctx, runs, toolsEnabled ? TOOL_GUIDANCE : PROPOSE_ONLY_GUIDANCE),
+      history,
+      content,
+      toolsEnabled,
+      onText: (delta) => sendEvent(res, { content: delta }),
+      onAction: (event) => sendEvent(res, { action: event }),
+    });
 
-    const orchMsg = await saveOrchestratorMessage(fullResponse || "No response generated.", actions);
+    const actions = buildActions(runs, toolEvents);
+    const orchMsg = await saveOrchestratorMessage(text || "No response generated.", actions);
+    captureMemoryFromTurn(content, text, orchMsg.id);
+
     sendEvent(res, { done: true, userMessageId: userMsg.id, messageId: orchMsg.id, agentActions: actions });
     res.end();
   } catch (err) {
@@ -224,7 +302,7 @@ function violationActions(): AgentAction[] {
   return [
     {
       agentId: "orchestrator",
-      agentName: "CEO Orchestrator",
+      agentName: "Maya",
       action: "Rule violation detected — Strategic Brain constraint applied",
       result: "Response redirected per user-defined rules",
     },

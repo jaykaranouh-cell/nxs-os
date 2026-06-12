@@ -258,7 +258,8 @@ export default function Orchestrator() {
   const [localUserMessage, setLocalUserMessage] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState<string>("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [consulting, setConsulting] = useState<string[]>([]);
+  const [consulting, setConsulting] = useState<Array<{ name: string; done: boolean }>>([]);
+  const [liveActions, setLiveActions] = useState<Array<{ tool: string; summary: string; error?: boolean }>>([]);
   const hasSentInitialQuery = useRef(false);
   const lastMessageCount = useRef(0);
   const search = useSearch();
@@ -311,11 +312,12 @@ export default function Orchestrator() {
     setIsStreaming(true);
     setStreamingContent("");
     setConsulting([]);
+    setLiveActions([]);
     try {
       const resp = await fetch("/api/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ content: msg }),
+        body: JSON.stringify({ content: msg, executionLevel: execLevel }),
       });
       if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`);
       const reader = resp.body.getReader();
@@ -334,9 +336,16 @@ export default function Orchestrator() {
             if (Array.isArray(d.dispatch)) {
               setConsulting(
                 (d.dispatch as Array<{ agentName?: string }>)
-                  .map((a) => a.agentName ?? "")
-                  .filter(Boolean)
+                  .map((a) => ({ name: a.agentName ?? "", done: false }))
+                  .filter((a) => a.name)
               );
+            }
+            if (d.agentDone && typeof d.agentDone === "object") {
+              const name = (d.agentDone as { agentName?: string }).agentName;
+              if (name) setConsulting((p) => p.map((c) => (c.name === name ? { ...c, done: true } : c)));
+            }
+            if (d.action && typeof d.action === "object") {
+              setLiveActions((p) => [...p, d.action as { tool: string; summary: string; error?: boolean }]);
             }
             if (typeof d.content === "string") setStreamingContent((p) => p + d.content);
             if (d.done === true) {
@@ -535,9 +544,13 @@ export default function Orchestrator() {
                 </Avatar>
                 <div className="bg-primary/10 border-primary/20 border px-4 py-3 rounded-2xl flex items-center gap-2 shadow-md">
                   {consulting.length > 0 && (
-                    <span className="text-xs text-primary/80 flex items-center gap-1.5">
+                    <span className="text-xs text-primary/80 flex items-center gap-2 flex-wrap">
                       <Network className="h-3 w-3" />
-                      Consulting {consulting.join(", ")}
+                      {consulting.map((c) => (
+                        <span key={c.name} className={`flex items-center gap-1 ${c.done ? "text-green-400/80" : ""}`}>
+                          {c.done ? "✓" : ""} {c.name}
+                        </span>
+                      ))}
                     </span>
                   )}
                   <span className="flex items-center gap-1">
@@ -554,6 +567,22 @@ export default function Orchestrator() {
                   <AvatarFallback className="bg-primary/10 text-primary"><Bot className="h-3.5 w-3.5" /></AvatarFallback>
                 </Avatar>
                 <div className="px-3 sm:px-4 py-3 rounded-2xl shadow-md bg-primary/10 border-primary/20 border min-w-0 flex-1 break-words">
+                  {liveActions.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {liveActions.map((a, i) => (
+                        <span
+                          key={i}
+                          className={`text-[9px] font-mono px-2 py-1 rounded-md border ${
+                            a.error
+                              ? "border-red-400/30 bg-red-400/10 text-red-400/90"
+                              : "border-green-400/25 bg-green-400/8 text-green-400/90"
+                          }`}
+                        >
+                          ⚡ {a.summary}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <MessageContent content={streamingContent} />
                   <span className="inline-block w-1.5 h-4 bg-primary/60 animate-pulse ml-0.5 align-middle rounded-sm" />
                 </div>

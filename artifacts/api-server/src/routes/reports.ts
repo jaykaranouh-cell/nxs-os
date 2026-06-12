@@ -1,4 +1,6 @@
 import { Router } from "express";
+import { llmUsageTable } from "@workspace/db";
+import { gte } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { leadsTable, agentTasksTable, ideasTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -94,6 +96,47 @@ router.get("/reports/finance", async (req, res) => {
   ];
 
   res.json({ revenue, expenses, cashFlow, campaignROI, revenueByMonth, topExpenses });
+});
+
+
+// GET /reports/usage — token usage + estimated cost, last 30 days
+// Estimated at Opus 4.6 list prices: $5/M input, $25/M output, $0.50/M cache reads.
+const PRICE_PER_TOKEN = { input: 5 / 1e6, output: 25 / 1e6, cacheRead: 0.5 / 1e6, cacheWrite: 6.25 / 1e6 };
+
+router.get("/reports/usage", async (req, res) => {
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const rows = await db.select().from(llmUsageTable).where(gte(llmUsageTable.createdAt, since));
+
+  const byScope = new Map<string, { calls: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cost: number }>();
+  for (const r of rows) {
+    const agg = byScope.get(r.scope) ?? { calls: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cost: 0 };
+    agg.calls += 1;
+    agg.inputTokens += r.inputTokens;
+    agg.outputTokens += r.outputTokens;
+    agg.cacheReadTokens += r.cacheReadTokens;
+    agg.cost +=
+      r.inputTokens * PRICE_PER_TOKEN.input +
+      r.outputTokens * PRICE_PER_TOKEN.output +
+      r.cacheReadTokens * PRICE_PER_TOKEN.cacheRead +
+      r.cacheWriteTokens * PRICE_PER_TOKEN.cacheWrite;
+    byScope.set(r.scope, agg);
+  }
+
+  const scopes = [...byScope.entries()]
+    .map(([scope, a]) => ({
+      scope,
+      calls: a.calls,
+      inputTokens: a.inputTokens,
+      outputTokens: a.outputTokens,
+      cacheReadTokens: a.cacheReadTokens,
+      estimatedCostUsd: Math.round(a.cost * 10000) / 10000,
+    }))
+    .sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd);
+
+  res.json({
+    totalCostUsd: Math.round(scopes.reduce((s, r) => s + r.estimatedCostUsd, 0) * 10000) / 10000,
+    byScope: scopes,
+  });
 });
 
 export default router;

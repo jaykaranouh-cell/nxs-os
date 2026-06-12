@@ -8,6 +8,7 @@ A web-based AI business orchestration dashboard for Jay — a central command ce
 - `pnpm --filter @workspace/api-server run dev` — API server (default port 8080)
 - `pnpm --filter @workspace/nexus-ai run dev` — frontend (default port 22706, proxies `/api` → 8080)
 - `pnpm run typecheck` — full typecheck across all packages
+- `pnpm test` — vitest unit tests (orchestrator guards, prompts, tools, dispatch)
 - `pnpm run build` — typecheck + build all packages (mockup-sandbox needs `PORT`/`BASE_PATH`; its failure is ignorable)
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
@@ -21,6 +22,7 @@ Secrets live in the repo-root `.env` (gitignored; see `.env.example`):
 - Backup: `docker exec nxs-postgres pg_dump -U nxs nxs > backup.sql` — the DB holds the memory moat; back it up before risky operations
 - `ANTHROPIC_API_KEY` — required for orchestrator + department agents (claude-opus-4-6); the server boots without it but LLM calls fail
 - `NXS_ACCESS_TOKEN` — optional; when set, all `/api` routes (except `/api/healthz`) require `Authorization: Bearer <token>` and the frontend shows an unlock screen
+- `OBSIDIAN_VAULT_PATH` — optional; enables the Obsidian bridge (default points at ~/Desktop/NXS-Brain)
 
 The api-server loads the root `.env` via `node --env-file-if-exists`; drizzle-kit loads it from `lib/db/drizzle.config.ts`.
 
@@ -48,6 +50,12 @@ The api-server loads the root `.env` via `node --env-file-if-exists`; drizzle-ki
 
 - Agent definitions (CEO Orchestrator, Sales, Marketing, Research, Finance) live in `src/lib/orchestrator/agents.ts` (single source of truth, incl. per-agent system prompts) — they always exist and are never user-created
 - Chat is a real multi-agent pipeline on the Claude API (`@anthropic-ai/sdk`, `lib/integrations-anthropic-server`): a low-effort claude-opus-4-6 router decides which department agents to dispatch (0–3), each dispatched agent runs its own claude-opus-4-6 call with adaptive thinking in parallel and is logged to `agent_tasks` + `agent_logs`, then the orchestrator streams a CoS synthesis that integrates their reports. The shared business briefing leads every system prompt with `cache_control: ephemeral`, so agent calls and synthesis share one cached prefix (~90% cheaper repeated context). `agentActions` on chat messages reflect these real runs
+- Maya (the orchestrator) has write-tools (`src/lib/orchestrator/tools.ts`): create_memory_entry, update_lead_stage, create_agent_task, log_idea, update_opportunity. The chat synthesis runs a tool-use loop (max 5 rounds); executed actions stream to the UI as `action` SSE events and land in `agent_logs`. The Orchestrator page's execution level gates this: green/amber = tools enabled, red = propose-only (tools withheld, Maya phrases actions for approval)
+- Auto-capture (`src/lib/orchestrator/capture.ts`): after every chat turn a low-effort extraction pass distills decisions/lessons/commitments into `memory_proposals`; Jay approves/rejects them in the queue at the top of the Memory Engine. Approval promotes a proposal to a real memory entry
+- Scheduler (`src/lib/scheduler.ts`, node-cron, server-local time): 07:00 morning brief generation, 07:30 risk watchdog (stale critical/needs-review items become high-priority orchestrator tasks), Monday 08:00 one proactive idea per department into the Ideas queue. LLM jobs no-op without ANTHROPIC_API_KEY
+- Obsidian bridge (`src/lib/obsidian.ts`, every 10 min + on boot): one-way ingest of 00-Inbox/ and 04-Meetings/ notes → extraction → memory proposals (max 3 notes/run, mtime-tracked in system_context); one-way mirror of all memory entries → 08-NXS-OS-Memory/*.md with frontmatter and [[wikilinks]] from memory_connections. Never two-way on the same file
+- Cost telemetry: every LLM call records token usage to `llm_usage` (scopes: router, agent:<id>, synthesis, brief, capture, obsidian:ingest, scheduler:*); `GET /reports/usage` returns 30-day per-scope cost estimates
+- `/api/chat` is rate-limited (20 req/min)
 - Deterministic rule guards (no cold outreach, goal-spread challenge) fire in `src/lib/orchestrator/guards.ts` before any LLM call
 - Lead qualification workflow: incoming → Sales Agent qualifies → routes to Sales (qualified) or Marketing (nurture) or logged as rejected
 - The Memory system is the core moat: persistent, categorized, searchable knowledge base shared across all agents. `priority`/`importance`/`confidence`/`status` are typed enums in the Drizzle schema and enforced at the API boundary via `insertMemoryEntrySchema`
@@ -74,7 +82,7 @@ The api-server loads the root `.env` via `node --env-file-if-exists`; drizzle-ki
 - After any OpenAPI spec change, re-run `pnpm --filter @workspace/api-spec run codegen` before using updated types
 - After changing `lib/db/src/schema/`, run `pnpm run typecheck:libs` then `pnpm --filter @workspace/db run push`
 - `numeric` Drizzle columns expect strings: use `String(value)` on insert, `parseFloat(value)` on serialize
-- API server routes must be registered in `artifacts/api-server/src/routes/index.ts`
+- API server routes must be registered in `artifacts/api-server/src/routes/index.ts` — proposalsRouter must stay BEFORE memoryRouter or `/memory/proposals` is swallowed by `/memory/:id`
 - `memory_connections` has cascading foreign keys to `memory_entries` — `db push` fails if orphaned connection rows exist (delete them first)
 - Stale `*.tsbuildinfo` files can make `tsc --build` skip emitting lib `dist/` — delete them and `npx tsc --build --force` if api-server typecheck reports TS6305
 - To tune agent behaviour, edit the system prompts in `src/lib/orchestrator/agents.ts` and the routing rules in `dispatch.ts`

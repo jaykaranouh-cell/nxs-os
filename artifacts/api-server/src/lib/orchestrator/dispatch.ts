@@ -2,6 +2,7 @@ import { db, agentTasksTable, agentLogsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { anthropic, CLAUDE_MODEL, messageText } from "@workspace/integrations-anthropic-server";
 import { logger } from "../logger";
+import { recordUsage } from "./telemetry";
 import { DEPARTMENT_AGENTS, getAgent, type AgentDefinition } from "./agents";
 import type { OrchestratorContext } from "./context";
 import { buildAgentBriefing } from "./prompts";
@@ -56,6 +57,7 @@ export async function planDispatch(userMessage: string): Promise<Dispatch[]> {
       messages: [{ role: "user", content: userMessage }],
     });
 
+    recordUsage("router", CLAUDE_MODEL, response.usage);
     const raw = extractJson(messageText(response)) || "{}";
     const parsed = JSON.parse(raw) as { dispatches?: Array<{ agent?: string; task?: string }> };
     const validIds = new Set(DEPARTMENT_AGENTS.map((a) => a.id));
@@ -105,6 +107,7 @@ async function runDepartmentAgent(
       ],
     });
 
+    recordUsage(`agent:${agent.id}`, CLAUDE_MODEL, response.usage);
     const findings = messageText(response).trim();
     if (!findings) throw new Error("Empty agent response");
 
@@ -141,12 +144,17 @@ function eqId(id: number) {
 export async function runDispatches(
   dispatches: Dispatch[],
   ctx: OrchestratorContext,
-  userMessage: string
+  userMessage: string,
+  onAgentDone?: (run: AgentRun) => void
 ): Promise<AgentRun[]> {
   if (dispatches.length === 0) return [];
   const briefing = buildAgentBriefing(ctx);
   const runs = await Promise.all(
-    dispatches.map((d) => runDepartmentAgent(d, briefing, userMessage))
+    dispatches.map(async (d) => {
+      const run = await runDepartmentAgent(d, briefing, userMessage);
+      if (run) onAgentDone?.(run);
+      return run;
+    })
   );
   return runs.filter((r): r is AgentRun => r !== null);
 }
@@ -160,7 +168,7 @@ export function toAgentActions(runs: AgentRun[]): AgentAction[] {
   }));
   actions.push({
     agentId: "orchestrator",
-    agentName: "CEO Orchestrator",
+    agentName: "Maya",
     action: runs.length
       ? `Synthesized reports from ${runs.map((r) => r.agent.name).join(", ")} into a CoS briefing`
       : "Answered directly from Strategic Brain, memory, and opportunity data",

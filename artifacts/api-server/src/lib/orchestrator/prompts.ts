@@ -190,12 +190,18 @@ export interface SystemBlock {
  * prefix with the department agent calls; the identity, agent reports, and
  * response format follow in a separate block.
  */
-export function buildSystemBlocks(ctx: OrchestratorContext, runs: AgentRun[] = []): SystemBlock[] {
+export function buildSystemBlocks(
+  ctx: OrchestratorContext,
+  runs: AgentRun[] = [],
+  extraGuidance?: string
+): SystemBlock[] {
   const sections: string[] = [];
 
   sections.push(
-    `You are the NXS Orchestrator — Jay's personal AI Chief of Staff. You are direct, sharp, and strategic. You know Jay's business and life deeply because you have access to his real data loaded above. Never be vague. Always be specific, naming real items from the data.`
+    `You are Maya — Jay's personal AI Chief of Staff and the orchestrator of NXS OS. You are direct, sharp, and strategic. You know Jay's business and life deeply because you have access to his real data loaded above. Never be vague. Always be specific, naming real items from the data.`
   );
+
+  if (extraGuidance) sections.push(extraGuidance);
 
   if (runs.length) {
     sections.push(

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { ContextIntakeModal } from "@/components/ContextIntakeModal";
+import { ProposalsQueue } from "@/components/memory/ProposalsQueue";
 import {
   useListMemoryEntries,
   useGetMemoryCategorySummary,
@@ -906,6 +907,7 @@ export default function Memory() {
 
   return (
     <div className="h-full flex flex-col gap-4 overflow-hidden">
+      <ProposalsQueue />
       {/* Header */}
       <div className="flex justify-between items-center flex-shrink-0">
         <div>

@@ -423,6 +423,64 @@ paths:
               schema:
                 $ref: "#/components/schemas/MemoryConnection"
 
+  /memory/proposals:
+    get:
+      operationId: listMemoryProposals
+      tags: [memory]
+      summary: List auto-captured memory proposals
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Proposals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MemoryProposal"
+
+  /memory/proposals/{id}/approve:
+    post:
+      operationId: approveMemoryProposal
+      tags: [memory]
+      summary: Approve a proposal, creating a real memory entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Approved proposal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryProposal"
+
+  /memory/proposals/{id}/reject:
+    post:
+      operationId: rejectMemoryProposal
+      tags: [memory]
+      summary: Reject a proposal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Rejected proposal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryProposal"
+
   /memory/{id}:
     get:
       operationId: getMemoryEntry
@@ -643,6 +701,19 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PipelineReport"
+
+  /reports/usage:
+    get:
+      operationId: getLlmUsageReport
+      tags: [reports]
+      summary: LLM token usage and estimated cost (last 30 days)
+      responses:
+        "200":
+          description: Usage report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LlmUsageReport"
 
   /reports/finance:
     get:
@@ -1425,12 +1496,77 @@ components:
         timestamp:
           type: string
 
+    MemoryProposal:
+      type: object
+      required: [id, title, content, category, priority, source, status, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        category:
+          type: string
+        priority:
+          type: string
+        nextAction:
+          type: string
+          nullable: true
+        source:
+          type: string
+        sourceRef:
+          type: string
+          nullable: true
+        status:
+          type: string
+        memoryEntryId:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+        resolvedAt:
+          type: string
+          nullable: true
+
+    LlmUsageScopeRow:
+      type: object
+      required: [scope, calls, inputTokens, outputTokens, cacheReadTokens, estimatedCostUsd]
+      properties:
+        scope:
+          type: string
+        calls:
+          type: integer
+        inputTokens:
+          type: integer
+        outputTokens:
+          type: integer
+        cacheReadTokens:
+          type: integer
+        estimatedCostUsd:
+          type: number
+
+    LlmUsageReport:
+      type: object
+      required: [totalCostUsd, byScope]
+      properties:
+        totalCostUsd:
+          type: number
+        byScope:
+          type: array
+          items:
+            $ref: "#/components/schemas/LlmUsageScopeRow"
+
     ChatMessageInput:
       type: object
       required: [content]
       properties:
         content:
           type: string
+        executionLevel:
+          type: string
+          enum: [green, amber, red]
+          description: green = act silently, amber = act and report, red = propose only
 
     ChatResponse:
       type: object

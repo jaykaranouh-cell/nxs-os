@@ -8,6 +8,7 @@ import {
 } from "@workspace/db";
 import { desc, eq, inArray } from "drizzle-orm";
 import { anthropic, CLAUDE_MODEL, messageText } from "@workspace/integrations-anthropic-server";
+import { recordUsage } from "../lib/orchestrator/telemetry";
 
 const router = Router();
 
@@ -33,7 +34,7 @@ function safeNum(v: unknown): number {
   return isNaN(n) ? 0 : n;
 }
 
-async function generateBrief() {
+export async function generateBrief() {
   const [allMemory, allOpps, allLeads, ctxRows, lastIdsRow] = await Promise.all([
     db.select().from(memoryEntriesTable).orderBy(desc(memoryEntriesTable.createdAt)),
     db.select().from(opportunitiesTable).orderBy(desc(opportunitiesTable.updatedAt)),
@@ -212,6 +213,7 @@ Constraints:
     messages: [{ role: "user", content: prompt }],
   });
 
+  recordUsage("brief", CLAUDE_MODEL, response.usage);
   const raw = messageText(response).replace(/^```(?:json)?\s*|```\s*$/g, "").trim() || "{}";
   let brief: Record<string, unknown>;
   try {

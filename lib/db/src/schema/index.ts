@@ -6,3 +6,5 @@ export * from "./ideas";
 export * from "./decisions";
 export * from "./systemContext";
 export * from "./opportunities";
+export * from "./proposals";
+export * from "./usage";

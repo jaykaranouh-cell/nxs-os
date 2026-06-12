@@ -16,10 +16,10 @@ Reply with your findings only: 3-6 tight sentences or bullets, no greeting, no p
 export const AGENTS: AgentDefinition[] = [
   {
     id: "orchestrator",
-    name: "CEO Orchestrator",
+    name: "Maya",
     department: "orchestrator",
     description:
-      "Coordinates all department agents, routes tasks, synthesizes business intelligence, and serves as Jay's strategic AI partner.",
+      "Jay's AI Chief of Staff. Coordinates all department agents, routes tasks, synthesizes business intelligence, and acts on the system on Jay's behalf.",
     capabilities: [
       "Strategic planning",
       "Agent coordination",
