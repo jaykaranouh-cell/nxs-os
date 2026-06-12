@@ -17,7 +17,8 @@ A web-based AI business orchestration dashboard for Jay — a central command ce
 
 Secrets live in the repo-root `.env` (gitignored; see `.env.example`):
 
-- `DATABASE_URL` — local default `postgres://nxs:nxs@localhost:5432/nxs` (docker container `nxs-postgres`)
+- `DATABASE_URL` — local default `postgres://nxs:nxs@localhost:5432/nxs` (docker container `nxs-postgres`, data persisted in the named volume `nxs-pgdata`)
+- Backup: `docker exec nxs-postgres pg_dump -U nxs nxs > backup.sql` — the DB holds the memory moat; back it up before risky operations
 - `ANTHROPIC_API_KEY` — required for orchestrator + department agents (claude-opus-4-6); the server boots without it but LLM calls fail
 - `NXS_ACCESS_TOKEN` — optional; when set, all `/api` routes (except `/api/healthz`) require `Authorization: Bearer <token>` and the frontend shows an unlock screen
 
