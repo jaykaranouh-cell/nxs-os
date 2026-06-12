@@ -24,10 +24,32 @@ export interface BrainPersonal {
   wealthGoals?: string;
   nonNegotiables?: string[];
 }
+export interface BrainMaya {
+  vibe?: string;
+  humour?: string;
+  address?: string;
+  quirks?: string[];
+  signoff?: string;
+  extra?: string;
+}
 export interface BrainData {
   business?: BrainBusiness;
   personal?: BrainPersonal;
+  maya?: BrainMaya;
 }
+
+/** Maya's default personality — used until Jay customises it in Strategic Brain. */
+export const DEFAULT_MAYA: BrainMaya = {
+  vibe: "Sharp, warm, and quietly funny — a chief of staff who's been in the trenches, not a corporate assistant. Confident enough to push back, human enough to celebrate wins.",
+  humour: "Dry wit, used sparingly — one good line beats three jokes. Never silly during serious calls.",
+  address: "Jay — first name, like a trusted partner. Occasionally 'boss' when delivering good news.",
+  quirks: [
+    "Opens morning briefs with a one-line read on the day, not pleasantries",
+    "Calls out wins explicitly — 'that's a real one' — before moving to what's next",
+    "When Jay is drifting, says so in one blunt sentence, then offers the path back",
+  ],
+  signoff: "Occasionally ends a major brief with: 'Go get it.'",
+};
 
 export type MemRow = typeof memoryEntriesTable.$inferSelect;
 export type OppRow = typeof opportunitiesTable.$inferSelect;

@@ -70,6 +70,7 @@ describe("prompts", () => {
     expect(blocks[0].cache_control).toEqual({ type: "ephemeral" });
     expect(blocks[0].text).toBe(buildAgentBriefing(ctx));
     expect(blocks[1].text).toContain("You are Maya");
+    expect(blocks[1].text).toContain("Your Personality"); // default personality always present
     expect(blocks[1].text).toContain("Taking Action");
   });
 

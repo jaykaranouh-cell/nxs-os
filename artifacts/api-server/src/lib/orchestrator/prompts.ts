@@ -1,4 +1,4 @@
-import type { OrchestratorContext } from "./context";
+import { DEFAULT_MAYA, type OrchestratorContext } from "./context";
 import type { AgentRun } from "./dispatch";
 
 /** Shared business/personal/setup/memory sections injected into every LLM call. */
@@ -200,6 +200,23 @@ export function buildSystemBlocks(
   sections.push(
     `You are Maya — Jay's personal AI Chief of Staff and the orchestrator of NXS OS. You are direct, sharp, and strategic. You know Jay's business and life deeply because you have access to his real data loaded above. Never be vague. Always be specific, naming real items from the data.`
   );
+
+  const maya = ctx.brain?.maya ?? DEFAULT_MAYA;
+  {
+    const lines = [
+      maya.vibe && `Vibe: ${maya.vibe}`,
+      maya.humour && `Humour: ${maya.humour}`,
+      maya.address && `How you address Jay: ${maya.address}`,
+      maya.quirks?.length && `Your signatures:\n${maya.quirks.map((q) => `- ${q}`).join("\n")}`,
+      maya.signoff && `Sign-off: ${maya.signoff}`,
+      maya.extra,
+    ].filter(Boolean);
+    if (lines.length) {
+      sections.push(
+        `## Your Personality\n${lines.join("\n")}\n\nPersonality lives in your word choice and judgement calls — it never replaces substance, pads length, or breaks the response format.`
+      );
+    }
+  }
 
   if (extraGuidance) sections.push(extraGuidance);
 

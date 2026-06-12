@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Compass, Target, Heart, DollarSign, Shield, Edit, Check, X,
   Plus, Trash2, Brain, Briefcase, User, Zap, BookOpen, AlertTriangle, TrendingUp,
-  Database, ChevronDown
+  Database, ChevronDown, Sparkles
 } from "lucide-react";
 
 interface BrainBusiness {
@@ -33,9 +33,19 @@ interface BrainPersonal {
   nonNegotiables: string[];
 }
 
+interface BrainMaya {
+  vibe: string;
+  humour: string;
+  address: string;
+  quirks: string[];
+  signoff: string;
+  extra: string;
+}
+
 interface BrainData {
   business: BrainBusiness;
   personal: BrainPersonal;
+  maya: BrainMaya;
 }
 
 const DEFAULT_BRAIN: BrainData = {
@@ -86,6 +96,18 @@ const DEFAULT_BRAIN: BrainData = {
       "Protect the maker schedule — no meeting days",
       "Say no to anything that doesn't align with the 3-year vision",
     ],
+  },
+  maya: {
+    vibe: "Sharp, warm, and quietly funny — a chief of staff who's been in the trenches, not a corporate assistant. Confident enough to push back, human enough to celebrate wins.",
+    humour: "Dry wit, used sparingly — one good line beats three jokes. Never silly during serious calls.",
+    address: "Jay — first name, like a trusted partner. Occasionally 'boss' when delivering good news.",
+    quirks: [
+      "Opens morning briefs with a one-line read on the day, not pleasantries",
+      "Calls out wins explicitly — 'that's a real one' — before moving to what's next",
+      "When Jay is drifting, says so in one blunt sentence, then offers the path back",
+    ],
+    signoff: "Occasionally ends a major brief with: 'Go get it.'",
+    extra: "",
   },
 };
 
@@ -244,7 +266,8 @@ export default function StrategicBrain() {
 
   useEffect(() => {
     if (contextData?.brain) {
-      setBrain(contextData.brain as BrainData);
+      const incoming = contextData.brain as BrainData;
+      setBrain({ ...incoming, maya: { ...DEFAULT_BRAIN.maya, ...(incoming.maya ?? {}) } });
     }
   }, [contextData]);
 
@@ -397,6 +420,35 @@ export default function StrategicBrain() {
           <BrainSection icon={<Shield className="h-4 w-4" />} title="Non-Negotiables" color="text-red-400">
             <p className="text-[10px] text-muted-foreground mb-3">The Orchestrator will never recommend actions that violate these</p>
             <EditableList items={brain.personal.nonNegotiables} onChange={(v) => update("personal", "nonNegotiables", v)} placeholder="Add a non-negotiable..." />
+          </BrainSection>
+        </div>
+      </div>
+
+      {/* ── MAYA PERSONALITY ── */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 pb-1 border-b border-border/40">
+          <Sparkles className="h-4 w-4 text-primary" />
+          <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Maya — Personality</h2>
+          <span className="text-[10px] text-muted-foreground/50">how she talks to you, in chat and out loud</span>
+        </div>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <BrainSection icon={<Sparkles className="h-4 w-4" />} title="Vibe" color="text-primary">
+            <EditableText value={brain.maya.vibe} onChange={(v) => update("maya", "vibe", v)} multiline placeholder="Who is Maya? Describe her character in a sentence or two..." />
+          </BrainSection>
+          <BrainSection icon={<Zap className="h-4 w-4" />} title="Humour" color="text-yellow-400">
+            <EditableText value={brain.maya.humour} onChange={(v) => update("maya", "humour", v)} multiline placeholder="Dry? Playful? None during serious topics?" />
+          </BrainSection>
+          <BrainSection icon={<Target className="h-4 w-4" />} title="How She Addresses You" color="text-cyan-400">
+            <EditableText value={brain.maya.address} onChange={(v) => update("maya", "address", v)} placeholder="e.g. First name only / 'boss' / 'mate'..." />
+          </BrainSection>
+          <BrainSection icon={<BookOpen className="h-4 w-4" />} title="Sign-off" color="text-green-400">
+            <EditableText value={brain.maya.signoff} onChange={(v) => update("maya", "signoff", v)} placeholder="A line she sometimes closes with..." />
+          </BrainSection>
+          <BrainSection icon={<Zap className="h-4 w-4" />} title="Signature Habits" color="text-violet-400">
+            <EditableList items={brain.maya.quirks} onChange={(v) => update("maya", "quirks", v)} placeholder="Add a verbal habit or signature move..." />
+          </BrainSection>
+          <BrainSection icon={<BookOpen className="h-4 w-4" />} title="Anything Else" color="text-orange-400">
+            <EditableText value={brain.maya.extra} onChange={(v) => update("maya", "extra", v)} multiline placeholder="Free-form instructions: Aussie slang, pet peeves, energy level..." />
           </BrainSection>
         </div>
       </div>

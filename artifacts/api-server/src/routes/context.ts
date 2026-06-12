@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { systemContextTable } from "@workspace/db";
 import { eq, inArray } from "drizzle-orm";
+import { DEFAULT_MAYA } from "../lib/orchestrator/context";
 
 const router = Router();
 
@@ -54,6 +55,7 @@ const DEFAULT_BRAIN = {
       "Say no to anything that doesn't align with the 3-year vision",
     ],
   },
+  maya: DEFAULT_MAYA,
 };
 
 // ─── Strategic Brain ──────────────────────────────────────────────────────────
@@ -74,8 +76,11 @@ router.get("/system-context", async (req, res) => {
   }
 
   try {
+    const stored = JSON.parse(rows[0].value) as Record<string, unknown>;
+    // Brains saved before the personality section existed get the default Maya.
+    if (!stored.maya) stored.maya = DEFAULT_BRAIN.maya;
     res.json({
-      brain: JSON.parse(rows[0].value),
+      brain: stored,
       updatedAt: rows[0].updatedAt.toISOString(),
     });
   } catch {
