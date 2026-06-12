@@ -23,6 +23,7 @@ Secrets live in the repo-root `.env` (gitignored; see `.env.example`):
 - `ANTHROPIC_API_KEY` — required for orchestrator + department agents (claude-opus-4-6); the server boots without it but LLM calls fail
 - `NXS_ACCESS_TOKEN` — optional; when set, all `/api` routes (except `/api/healthz`) require `Authorization: Bearer <token>` and the frontend shows an unlock screen
 - `OBSIDIAN_VAULT_PATH` — optional; enables the Obsidian bridge (default points at ~/Desktop/NXS-Brain)
+- `ELEVENLABS_API_KEY` (+ optional `ELEVENLABS_VOICE_ID`) — enables voice: Maya speaks replies (TTS) and the mic button dictates via ElevenLabs Scribe. `/api/voice/*` returns 503 without it
 
 The api-server loads the root `.env` via `node --env-file-if-exists`; drizzle-kit loads it from `lib/db/drizzle.config.ts`.
 
@@ -55,7 +56,7 @@ The api-server loads the root `.env` via `node --env-file-if-exists`; drizzle-ki
 - Scheduler (`src/lib/scheduler.ts`, node-cron, server-local time): 07:00 morning brief generation, 07:30 risk watchdog (stale critical/needs-review items become high-priority orchestrator tasks), Monday 08:00 one proactive idea per department into the Ideas queue. LLM jobs no-op without ANTHROPIC_API_KEY
 - Obsidian bridge (`src/lib/obsidian.ts`, every 10 min + on boot): one-way ingest of 00-Inbox/ and 04-Meetings/ notes → extraction → memory proposals (max 3 notes/run, mtime-tracked in system_context); one-way mirror of all memory entries → 08-NXS-OS-Memory/*.md with frontmatter and [[wikilinks]] from memory_connections. Never two-way on the same file
 - Cost telemetry: every LLM call records token usage to `llm_usage` (scopes: router, agent:<id>, synthesis, brief, capture, obsidian:ingest, scheduler:*); `GET /reports/usage` returns 30-day per-scope cost estimates
-- `/api/chat` is rate-limited (20 req/min)
+- `/api/chat` is rate-limited (20 req/min); `/api/voice` at 30 req/min. Voice routes (`routes/voice.ts`) proxy ElevenLabs server-side so the key never reaches the browser
 - Deterministic rule guards (no cold outreach, goal-spread challenge) fire in `src/lib/orchestrator/guards.ts` before any LLM call
 - Lead qualification workflow: incoming → Sales Agent qualifies → routes to Sales (qualified) or Marketing (nurture) or logged as rejected
 - The Memory system is the core moat: persistent, categorized, searchable knowledge base shared across all agents. `priority`/`importance`/`confidence`/`status` are typed enums in the Drizzle schema and enforced at the API boundary via `insertMemoryEntrySchema`

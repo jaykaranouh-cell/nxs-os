@@ -12,6 +12,7 @@ import contextRouter from "./context";
 import opportunitiesRouter from "./opportunities";
 import planRouter from "./plan";
 import morningBriefRouter from "./morningBrief";
+import voiceRouter from "./voice";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(contextRouter);
 router.use(opportunitiesRouter);
 router.use(planRouter);
 router.use(morningBriefRouter);
+router.use(voiceRouter);
 
 export default router;

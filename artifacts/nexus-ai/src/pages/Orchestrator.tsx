@@ -17,10 +17,12 @@ import { Link, useSearch } from "wouter";
 import {
   Bot, Send, User, BrainCircuit, Loader2, Activity, Zap, Bell, Lock,
   Shield, AlertTriangle, Brain, Compass, Lightbulb, Target, Network,
-  ChevronRight, ArrowRight, Database, BookOpen, CheckSquare, Plus
+  ChevronRight, ArrowRight, Database, BookOpen, CheckSquare, Plus,
+  Volume2, VolumeX, Mic, Square
 } from "lucide-react";
 import { ContextIntakeModal } from "@/components/ContextIntakeModal";
 import { authHeaders } from "@/lib/auth";
+import { speak, stopSpeaking, startRecording, type Recorder } from "@/lib/voice";
 
 type ExecLevel = "green" | "amber" | "red";
 
@@ -260,6 +262,13 @@ export default function Orchestrator() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [consulting, setConsulting] = useState<Array<{ name: string; done: boolean }>>([]);
   const [liveActions, setLiveActions] = useState<Array<{ tool: string; summary: string; error?: boolean }>>([]);
+  const [voiceOn, setVoiceOn] = useState(() => localStorage.getItem("nexus-voice") === "on");
+  const [speakingId, setSpeakingId] = useState<number | "live" | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const recorderRef = useRef<Recorder | null>(null);
+  const voiceOnRef = useRef(voiceOn);
+  voiceOnRef.current = voiceOn;
   const hasSentInitialQuery = useRef(false);
   const lastMessageCount = useRef(0);
   const search = useSearch();
@@ -305,6 +314,42 @@ export default function Orchestrator() {
     localStorage.setItem("nexus-exec-level", lev);
   }
 
+  function toggleVoice() {
+    const next = !voiceOn;
+    setVoiceOn(next);
+    localStorage.setItem("nexus-voice", next ? "on" : "off");
+    if (!next) { stopSpeaking(); setSpeakingId(null); }
+  }
+
+  async function speakMessage(id: number | "live", text: string) {
+    if (speakingId === id) { stopSpeaking(); setSpeakingId(null); return; }
+    try {
+      setSpeakingId(id);
+      await speak(text, () => setSpeakingId(null));
+    } catch {
+      setSpeakingId(null);
+    }
+  }
+
+  async function toggleMic() {
+    if (isRecording) {
+      setIsRecording(false);
+      setIsTranscribing(true);
+      try {
+        const text = await recorderRef.current?.stop();
+        if (text) setInput((p) => (p ? `${p} ${text}` : text));
+      } catch {} finally {
+        recorderRef.current = null;
+        setIsTranscribing(false);
+      }
+      return;
+    }
+    try {
+      recorderRef.current = await startRecording();
+      setIsRecording(true);
+    } catch {}
+  }
+
   async function streamMessage(message: string) {
     const msg = message.trim();
     if (!msg || isStreaming) return;
@@ -323,6 +368,7 @@ export default function Orchestrator() {
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let buf = "";
+      let fullText = "";
       outer: while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -347,9 +393,10 @@ export default function Orchestrator() {
             if (d.action && typeof d.action === "object") {
               setLiveActions((p) => [...p, d.action as { tool: string; summary: string; error?: boolean }]);
             }
-            if (typeof d.content === "string") setStreamingContent((p) => p + d.content);
+            if (typeof d.content === "string") { fullText += d.content; setStreamingContent((p) => p + d.content); }
             if (d.done === true) {
               queryClient.invalidateQueries({ queryKey: getListChatMessagesQueryKey({ limit: 50 }) });
+              if (voiceOnRef.current && fullText) void speakMessage("live", fullText);
               break outer;
             }
           } catch {}
@@ -502,11 +549,24 @@ export default function Orchestrator() {
                     </AvatarFallback>
                   </Avatar>
                   <div className={`space-y-2 min-w-0 flex-1 ${msg.role === "user" ? "items-end flex flex-col" : "items-start flex flex-col"}`}>
-                    <div className={`px-3 sm:px-4 py-3 rounded-2xl shadow-md w-full break-words ${msg.role === "user" ? "bg-accent/10 border-accent/20 border" : "bg-primary/10 border-primary/20 border"}`}>
+                    <div className={`relative group px-3 sm:px-4 py-3 rounded-2xl shadow-md w-full break-words ${msg.role === "user" ? "bg-accent/10 border-accent/20 border" : "bg-primary/10 border-primary/20 border"}`}>
                       {msg.role === "orchestrator"
                         ? <MessageContent content={msg.content} />
                         : <p className="text-sm leading-relaxed">{msg.content}</p>
                       }
+                      {msg.role === "orchestrator" && (
+                        <button
+                          onClick={() => void speakMessage(msg.id, msg.content)}
+                          title={speakingId === msg.id ? "Stop" : "Listen"}
+                          className={`absolute -top-2 -right-2 h-6 w-6 rounded-full border flex items-center justify-center transition-all ${
+                            speakingId === msg.id
+                              ? "border-primary bg-primary/20 text-primary opacity-100"
+                              : "border-white/10 bg-background text-white/40 opacity-0 group-hover:opacity-100 hover:text-primary hover:border-primary/40"
+                          }`}
+                        >
+                          {speakingId === msg.id ? <Square className="h-2.5 w-2.5" /> : <Volume2 className="h-3 w-3" />}
+                        </button>
+                      )}
                     </div>
                     {msg.agentActions && (() => {
                       try {
@@ -609,11 +669,32 @@ export default function Orchestrator() {
 
         {/* Input */}
         <div className="p-3 sm:p-4 bg-card/80 border-t border-border/50 flex-shrink-0">
-          <form onSubmit={handleSubmit} className="relative flex items-center">
+          <form onSubmit={handleSubmit} className="relative flex items-center gap-2">
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              onClick={toggleVoice}
+              title={voiceOn ? "Maya speaks her replies — click to mute" : "Enable Maya's voice"}
+              className={`h-11 w-11 rounded-xl flex-shrink-0 ${voiceOn ? "border-primary/50 text-primary bg-primary/10" : "border-border/50 text-white/30"}`}
+            >
+              {voiceOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              onClick={() => void toggleMic()}
+              disabled={isTranscribing}
+              title={isRecording ? "Stop and transcribe" : "Dictate with your voice"}
+              className={`h-11 w-11 rounded-xl flex-shrink-0 ${isRecording ? "border-red-400/60 text-red-400 bg-red-400/10 animate-pulse" : "border-border/50 text-white/40"}`}
+            >
+              {isRecording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            </Button>
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask the Orchestrator anything..."
+              placeholder={isRecording ? "Listening…" : isTranscribing ? "Transcribing…" : "Ask Maya anything..."}
               className="pr-12 bg-background border-primary/30 focus-visible:ring-primary/50 shadow-inner h-11 rounded-xl text-sm"
               disabled={isStreaming}
             />

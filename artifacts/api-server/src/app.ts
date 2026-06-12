@@ -34,6 +34,8 @@ app.use(express.urlencoded({ extended: true }));
 // LLM-backed chat is the expensive surface — cap it independently.
 const chatLimiter = rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: true, legacyHeaders: false });
 app.use("/api/chat", chatLimiter);
+const voiceLimiter = rateLimit({ windowMs: 60_000, limit: 30, standardHeaders: true, legacyHeaders: false });
+app.use("/api/voice", voiceLimiter);
 
 app.use("/api", authGuard, router);
 
