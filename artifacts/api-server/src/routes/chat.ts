@@ -108,10 +108,12 @@ async function runSynthesis(opts: {
     for (const block of final.content) {
       if (block.type !== "tool_use") continue;
       try {
-        const summary = await executeTool(block.name, block.input);
+        const result = await executeTool(block.name, block.input);
+        // Model gets the full result; UI chips and the action log get a summary.
+        const summary = result.length > 220 ? `${result.slice(0, 217)}…` : result;
         toolEvents.push({ tool: block.name, summary });
         opts.onAction?.({ tool: block.name, summary });
-        results.push({ type: "tool_result", tool_use_id: block.id, content: summary });
+        results.push({ type: "tool_result", tool_use_id: block.id, content: result });
       } catch (err) {
         const msg = err instanceof Error ? err.message : "tool failed";
         opts.onAction?.({ tool: block.name, summary: msg, error: true });

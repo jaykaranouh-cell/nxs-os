@@ -73,7 +73,7 @@ export async function planDispatch(userMessage: string): Promise<Dispatch[]> {
   }
 }
 
-async function runDepartmentAgent(
+export async function runDepartmentAgent(
   dispatch: Dispatch,
   briefing: string,
   userMessage: string
@@ -96,7 +96,9 @@ async function runDepartmentAgent(
         { type: "text", text: briefing, cache_control: { type: "ephemeral" } },
         { type: "text", text: agent.systemPrompt },
       ],
-      user: `Jay asked: "${userMessage}"\n\nYour task: ${dispatch.task}`,
+      user: userMessage
+        ? `Jay asked: "${userMessage}"\n\nYour task: ${dispatch.task}`
+        : `Maya (the orchestrator) dispatched you directly.\n\nYour task: ${dispatch.task}`,
       maxTokens: 4000,
       thinking: true,
     });

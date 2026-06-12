@@ -109,6 +109,13 @@ describe("tools", () => {
     expect(new Set(names).size).toBe(names.length);
     expect(names).toContain("create_memory_entry");
     expect(names).toContain("update_lead_stage");
+    expect(names).toContain("dispatch_agent");
+    expect(names).toContain("spawn_agent");
+  });
+
+  it("agent tools validate before any LLM or DB work", async () => {
+    await expect(executeTool("dispatch_agent", { agentId: "hr", task: "do a thing please" })).rejects.toThrow();
+    await expect(executeTool("spawn_agent", { role: "X", instructions: "too short", task: "y" })).rejects.toThrow();
   });
 
   it("rejects unknown tools before touching the database", async () => {

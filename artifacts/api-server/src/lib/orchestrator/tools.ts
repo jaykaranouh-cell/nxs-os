@@ -21,6 +21,10 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { Anthropic } from "@workspace/integrations-anthropic-server";
 import { DEPARTMENT_AGENTS, getAgent } from "./agents";
+import { runDepartmentAgent } from "./dispatch";
+import { loadContext } from "./context";
+import { buildAgentBriefing } from "./prompts";
+import { completeText } from "./llm";
 
 export type ExecutionLevel = "green" | "amber" | "red";
 
@@ -269,6 +273,97 @@ const updateOpportunity = {
   },
 };
 
+// ─── Agent tools: Maya commands her own team ──────────────────────────────────
+
+const dispatchAgentSchema = z.object({
+  agentId: z.enum(["sales", "marketing", "research", "finance"]),
+  task: z.string().min(10),
+});
+
+const dispatchAgent = {
+  definition: {
+    name: "dispatch_agent",
+    description:
+      "Dispatch one of your department agents (sales, marketing, research, finance) to investigate something right now. The agent gets the full business briefing plus your task and returns its findings to you. Use when a question deserves dedicated department analysis you don't already have.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        agentId: { type: "string", enum: ["sales", "marketing", "research", "finance"] },
+        task: { type: "string", description: "One concrete, self-contained instruction for the agent" },
+      },
+      required: ["agentId", "task"],
+    },
+  },
+  schema: dispatchAgentSchema,
+  async run(input: z.infer<typeof dispatchAgentSchema>): Promise<string> {
+    const ctx = await loadContext();
+    const run = await runDepartmentAgent(
+      { agentId: input.agentId, task: input.task },
+      buildAgentBriefing(ctx),
+      ""
+    );
+    if (!run) throw new Error(`${input.agentId} agent failed to produce findings`);
+    return `${run.agent.name} report on "${input.task}":\n${run.findings}`;
+  },
+};
+
+const spawnAgentSchema = z.object({
+  role: z.string().min(3).max(60),
+  instructions: z.string().min(20),
+  task: z.string().min(10),
+});
+
+const spawnAgent = {
+  definition: {
+    name: "spawn_agent",
+    description:
+      "Spin up a one-off specialist agent that doesn't exist in the department roster: you name its role (e.g. 'Pricing Analyst', 'Copy Critic', 'Devil's Advocate'), write its instructions, and give it one task. It gets the business briefing plus your instructions and reports back to you. Use for analysis that needs a perspective the four departments don't cover.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        role: { type: "string", description: "Short role name, e.g. 'Pricing Analyst'" },
+        instructions: { type: "string", description: "The specialist's system instructions: perspective, priorities, constraints" },
+        task: { type: "string", description: "The one task to perform" },
+      },
+      required: ["role", "instructions", "task"],
+    },
+  },
+  schema: spawnAgentSchema,
+  async run(input: z.infer<typeof spawnAgentSchema>): Promise<string> {
+    const ctx = await loadContext();
+    const briefing = buildAgentBriefing(ctx);
+    const [taskRow] = await db
+      .insert(agentTasksTable)
+      .values({ agentId: "adhoc", title: `[${input.role}] ${input.task}`.slice(0, 200), status: "in_progress", priority: "medium" })
+      .returning();
+    try {
+      const findings = await completeText({
+        role: "agent",
+        scope: "agent:adhoc",
+        system: [
+          { type: "text", text: briefing, cache_control: { type: "ephemeral" } },
+          {
+            type: "text",
+            text: `You are a one-off specialist agent in Jay's AI business team, spun up by Maya (the orchestrator). Your role: ${input.role}.\n\n${input.instructions}\n\nGround every claim in the business briefing above. Reply with your findings only: tight, specific, no preamble.`,
+          },
+        ],
+        user: input.task,
+        maxTokens: 4000,
+        thinking: true,
+      });
+      if (!findings.trim()) throw new Error("Specialist returned nothing");
+      await Promise.all([
+        db.update(agentTasksTable).set({ status: "completed", description: findings, completedAt: new Date() }).where(eq(agentTasksTable.id, taskRow.id)),
+        db.insert(agentLogsTable).values({ agentId: "adhoc", agentName: input.role, action: input.task, details: findings }),
+      ]);
+      return `${input.role} report on "${input.task}":\n${findings.trim()}`;
+    } catch (err) {
+      await db.update(agentTasksTable).set({ status: "failed", completedAt: new Date() }).where(eq(agentTasksTable.id, taskRow.id)).catch(() => {});
+      throw err;
+    }
+  },
+};
+
 // ─── Computer tools (Full Auto / green mode only) ─────────────────────────────
 
 const execFileAsync = promisify(execFile);
@@ -366,7 +461,7 @@ export const COMPUTER_TOOL_DEFINITIONS: Anthropic.Tool[] = COMPUTER_TOOLS.map((t
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 
-const BASE_TOOLS = [createMemoryEntry, updateLeadStage, createAgentTask, logIdea, updateOpportunity];
+const BASE_TOOLS = [createMemoryEntry, updateLeadStage, createAgentTask, logIdea, updateOpportunity, dispatchAgent, spawnAgent];
 const TOOLS = [...BASE_TOOLS, ...COMPUTER_TOOLS];
 
 export const TOOL_DEFINITIONS: Anthropic.Tool[] = BASE_TOOLS.map((t) => t.definition);
@@ -381,7 +476,7 @@ export async function executeTool(name: string, input: unknown): Promise<string>
 }
 
 export const TOOL_GUIDANCE = `## Taking Action
-You can act on the system directly with your tools (save memory, move leads, create tasks, log ideas, update opportunities). When Jay reports something that changes the state of the business, record it with the appropriate tool rather than only describing what he should do. Use tools sparingly and precisely — only for real state changes, never speculatively. If you also have computer tools (open apps, open the browser, fetch webpages), they act on Jay's actual Mac: use them when Jay asks or when showing him something beats describing it.`;
+You can act on the system directly with your tools (save memory, move leads, create tasks, log ideas, update opportunities). When Jay reports something that changes the state of the business, record it with the appropriate tool rather than only describing what he should do. Use write tools sparingly and precisely — only for real state changes, never speculatively. You also command your own team: dispatch_agent sends a department agent (sales, marketing, research, finance) to investigate, and spawn_agent creates a one-off specialist with instructions you write. Use them when a question deserves dedicated analysis you don't have; integrate their reports into your answer and credit them. If you also have computer tools (open apps, open the browser, fetch webpages), they act on Jay's actual Mac: use them when Jay asks or when showing him something beats describing it.`;
 
 export const PROPOSE_ONLY_GUIDANCE = `## Proposing Action (manual approval mode)
 You cannot execute changes right now — Jay has execution set to manual approval. When the conversation implies a state change (a memory worth saving, a lead to move, a task to create), end your Next Move with the specific action you WOULD take, phrased so Jay can approve it.`;
