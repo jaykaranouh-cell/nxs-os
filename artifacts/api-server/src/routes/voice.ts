@@ -12,8 +12,8 @@ import { Readable } from "node:stream";
 const router = Router();
 
 const ELEVEN_BASE = "https://api.elevenlabs.io/v1";
-// Rachel — ElevenLabs' default professional female voice; override per-env.
-const DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
+// Sarah — premade voice available on every tier (Rachel is library-gated on free); override per-env.
+const DEFAULT_VOICE_ID = "EXAVITQu4vr4xnSDxMaL";
 const TTS_MODEL = "eleven_turbo_v2_5";
 const STT_MODEL = "scribe_v1";
 const MAX_TTS_CHARS = 2500;
