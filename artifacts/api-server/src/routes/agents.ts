@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { agentTasksTable, agentLogsTable } from "@workspace/db";
+import { agentTasksTable, agentLogsTable, agentMessagesTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import {
   CreateAgentTaskBody,
@@ -28,6 +28,20 @@ router.get("/agents", async (req, res) => {
   });
 
   res.json(agents);
+});
+
+// GET /agents/messages — the team mailbox, newest first
+router.get("/agents/messages", async (req, res) => {
+  const rows = await db
+    .select()
+    .from(agentMessagesTable)
+    .orderBy(desc(agentMessagesTable.createdAt))
+    .limit(50);
+  res.json(rows.map((m) => ({
+    ...m,
+    createdAt: m.createdAt.toISOString(),
+    readAt: m.readAt?.toISOString() ?? null,
+  })));
 });
 
 // GET /agents/activity/recent

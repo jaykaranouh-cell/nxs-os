@@ -184,6 +184,21 @@ paths:
                 items:
                   $ref: "#/components/schemas/Agent"
 
+  /agents/messages:
+    get:
+      operationId: listAgentMessages
+      tags: [agents]
+      summary: Inter-agent team mailbox, newest first
+      responses:
+        "200":
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgentMessage"
+
   /agents/activity/recent:
     get:
       operationId: getRecentAgentActivity
@@ -1556,6 +1571,26 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/LlmUsageScopeRow"
+
+    AgentMessage:
+      type: object
+      required: [id, fromAgentId, fromAgentName, toAgentId, content, createdAt]
+      properties:
+        id:
+          type: integer
+        fromAgentId:
+          type: string
+        fromAgentName:
+          type: string
+        toAgentId:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+        readAt:
+          type: string
+          nullable: true
 
     ChatMessageInput:
       type: object

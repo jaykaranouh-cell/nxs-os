@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useListAgents, useGetRecentAgentActivity } from "@workspace/api-client-react";
+import { useListAgents, useGetRecentAgentActivity, useListAgentMessages } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -241,6 +241,7 @@ export default function Agents() {
   });
   const [deptModes, setDeptModes] = useState(DEPT_MODES);
   const { data: recentActivity, isLoading: activityLoading } = useGetRecentAgentActivity();
+  const { data: teamMessages } = useListAgentMessages();
 
   useEffect(() => {
     const saved = localStorage.getItem("nexus-exec-level") as ExecLevel | null;
@@ -367,7 +368,43 @@ export default function Agents() {
         </div>
       </div>
 
+{/* Team Channel — inter-agent mailbox */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 pb-2 border-b border-border/40">
+          <MessageSquare className="h-4 w-4 text-primary/70" />
+          <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Team Channel</h2>
+          <span className="text-[10px] text-muted-foreground/50">what the agents are telling each other</span>
+        </div>
+        {teamMessages && teamMessages.length > 0 ? (
+          <div className="space-y-2">
+            {teamMessages.slice(0, 12).map((m) => (
+              <div key={m.id} className="flex items-start gap-3 p-3 bg-primary/[0.03] border border-primary/15 rounded-lg">
+                <MessageSquare className="h-3.5 w-3.5 text-primary/50 mt-0.5 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-foreground">
+                    {m.fromAgentName}
+                    <span className="text-muted-foreground/60 font-normal"> → {m.toAgentId === "all" ? "everyone" : m.toAgentId === "orchestrator" ? "Maya" : m.toAgentId}</span>
+                  </p>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed whitespace-pre-line line-clamp-3">{m.content}</p>
+                </div>
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                  <span className="text-[9px] text-muted-foreground/50">
+                    {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                  <span className={`text-[8px] font-mono uppercase ${m.readAt ? "text-green-400/70" : "text-muted-foreground/40"}`}>
+                    {m.readAt ? "read" : "unread"}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[11px] text-muted-foreground/40 italic p-3">No team messages yet. Agents leave notes for each other here when they coordinate.</p>
+        )}
+      </div>
+
       {/* Recent Activity */}
+
       <div className="space-y-3">
         <div className="flex items-center gap-2 pb-2 border-b border-border/40">
           <Activity className="h-4 w-4 text-muted-foreground" />

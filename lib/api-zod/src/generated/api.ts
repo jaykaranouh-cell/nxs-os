@@ -222,6 +222,21 @@ export const ListAgentsResponse = zod.array(ListAgentsResponseItem)
 
 
 /**
+ * @summary Inter-agent team mailbox, newest first
+ */
+export const ListAgentMessagesResponseItem = zod.object({
+  "id": zod.number(),
+  "fromAgentId": zod.string(),
+  "fromAgentName": zod.string(),
+  "toAgentId": zod.string(),
+  "content": zod.string(),
+  "createdAt": zod.string(),
+  "readAt": zod.string().nullish()
+})
+export const ListAgentMessagesResponse = zod.array(ListAgentMessagesResponseItem)
+
+
+/**
  * @summary Get recent agent activity logs
  */
 export const GetRecentAgentActivityResponseItem = zod.object({

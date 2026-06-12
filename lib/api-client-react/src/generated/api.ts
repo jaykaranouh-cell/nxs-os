@@ -22,6 +22,7 @@ import type {
 import type {
   Agent,
   AgentLog,
+  AgentMessage,
   AgentTask,
   AgentTaskInput,
   AgentTaskUpdate,
@@ -677,6 +678,83 @@ export function useListAgents<TData = Awaited<ReturnType<typeof listAgents>>, TE
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListAgentsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListAgentMessagesUrl = () => {
+
+
+
+
+  return `/api/agents/messages`
+}
+
+/**
+ * @summary Inter-agent team mailbox, newest first
+ */
+export const listAgentMessages = async ( options?: RequestInit): Promise<AgentMessage[]> => {
+
+  return customFetch<AgentMessage[]>(getListAgentMessagesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAgentMessagesQueryKey = () => {
+    return [
+    `/api/agents/messages`
+    ] as const;
+    }
+
+
+export const getListAgentMessagesQueryOptions = <TData = Awaited<ReturnType<typeof listAgentMessages>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAgentMessages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAgentMessagesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAgentMessages>>> = ({ signal }) => listAgentMessages({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAgentMessages>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAgentMessagesQueryResult = NonNullable<Awaited<ReturnType<typeof listAgentMessages>>>
+export type ListAgentMessagesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Inter-agent team mailbox, newest first
+ */
+
+export function useListAgentMessages<TData = Awaited<ReturnType<typeof listAgentMessages>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAgentMessages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAgentMessagesQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

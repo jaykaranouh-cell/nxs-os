@@ -9,6 +9,7 @@
 export * from './agent';
 export * from './agentAction';
 export * from './agentLog';
+export * from './agentMessage';
 export * from './agentTask';
 export * from './agentTaskInput';
 export * from './agentTaskUpdate';

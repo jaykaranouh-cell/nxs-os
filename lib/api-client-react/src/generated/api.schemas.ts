@@ -362,6 +362,16 @@ export interface LlmUsageReport {
   byScope: LlmUsageScopeRow[];
 }
 
+export interface AgentMessage {
+  id: number;
+  fromAgentId: string;
+  fromAgentName: string;
+  toAgentId: string;
+  content: string;
+  createdAt: string;
+  readAt?: string | null;
+}
+
 /**
  * green = act silently, amber = act and report, red = propose only
  */
