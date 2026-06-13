@@ -71,8 +71,8 @@ function DraftCard({ draft, brand, models, imgModels, onChanged }: { draft: Draf
   const [genLoading, setGenLoading] = useState(false);
   const [vidLoading, setVidLoading] = useState<"image" | "text" | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [vidModel, setVidModel] = useState("seedance_2_0");
-  const [imgModel, setImgModel] = useState("nano_banana_2");
+  const [vidModel, setVidModel] = useState("veo3_1");
+  const [imgModel, setImgModel] = useState("gpt_image_2");
   const busy = genLoading || vidLoading !== null;
 
   const friendlyErr = (e: unknown) => {

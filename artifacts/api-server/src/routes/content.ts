@@ -6,7 +6,7 @@
 import { Router } from "express";
 import { db, contentDraftsTable, insertContentDraftSchema, brandsTable, insertBrandSchema } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
-import { generateImage, generateVideo, higgsfieldReady, HiggsfieldNotReady, VIDEO_MODELS, IMAGE_MODELS, GENERATED_DIR, aspectForPlatform } from "../lib/higgsfield";
+import { generateImage, generateVideo, higgsfieldReady, HiggsfieldNotReady, VIDEO_MODELS, IMAGE_MODELS, GENERATED_DIR, aspectForPlatform, videoAspectForPlatform } from "../lib/higgsfield";
 import path from "node:path";
 
 const router = Router();
@@ -180,7 +180,7 @@ router.post("/content/drafts/:id/video", async (req, res) => {
     : `Short professional LinkedIn marketing video, modern minimal tech aesthetic, deep blue and cyan palette, cinematic lighting, no on-screen text. Concept: ${gist}`;
 
   try {
-    const videoUrl = await generateVideo(prompt, { model, startImagePath }, `draft${id}`);
+    const videoUrl = await generateVideo(prompt, { model, startImagePath, aspect: videoAspectForPlatform(draft.platform) }, `draft${id}`);
     const [row] = await db
       .update(contentDraftsTable)
       .set({ videoUrl, videoModel: model })

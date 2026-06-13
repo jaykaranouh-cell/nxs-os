@@ -15,7 +15,7 @@ import { logger } from "./logger";
 const exec = promisify(execFile);
 
 const BIN = process.env.NXS_HIGGSFIELD_BIN || "/usr/local/bin/higgsfield";
-const IMAGE_MODEL = process.env.NXS_HIGGSFIELD_IMAGE_MODEL || "nano_banana_2";
+const IMAGE_MODEL = process.env.NXS_HIGGSFIELD_IMAGE_MODEL || "gpt_image_2";
 export const GENERATED_DIR =
   process.env.NXS_GENERATED_DIR || path.join(homedir(), "NXS-Generated");
 
@@ -94,13 +94,29 @@ export const VIDEO_MODELS: Array<{ id: string; label: string; tier: "fast" | "pr
   { id: "seedance1_5", label: "Seedance 1.5 Pro", tier: "premium" },
 ];
 
+// Per-model max-quality params (only flags each model accepts).
+const VIDEO_MODEL_PARAMS: Record<string, string[]> = {
+  veo3_1: ["--quality", "ultra"],
+  kling3_0: ["--mode", "4k"],
+  kling2_6: [],
+  seedance1_5: ["--resolution", "1080p"],
+  seedance_2_0: ["--resolution", "1080p"],
+  minimax_hailuo: ["--resolution", "1080"],
+  marketing_studio_video: ["--resolution", "1080p"],
+};
+
+/** Aspect ratio per platform for video (16:9 and 9:16 are supported by all). */
+export function videoAspectForPlatform(platform?: string): string {
+  return platform === "tiktok" || platform === "instagram" ? "9:16" : "16:9";
+}
+
 /**
  * Generate a video from a prompt (text-to-video), optionally animating a
  * starting image (image-to-video). Returns a locally-served path.
  */
 export async function generateVideo(
   prompt: string,
-  opts: { model: string; startImagePath?: string } ,
+  opts: { model: string; startImagePath?: string; aspect?: string },
   idHint = "vid"
 ): Promise<string> {
   if (!(await higgsfieldReady())) {
@@ -108,9 +124,12 @@ export async function generateVideo(
       "Higgsfield isn't connected. Run `higgsfield auth login` in your terminal once, then try again."
     );
   }
-  const model = VIDEO_MODELS.some((m) => m.id === opts.model) ? opts.model : "seedance_2_0";
-  const args = ["generate", "create", model, "--prompt", prompt, "--wait", "--wait-timeout", "900s", "--no-color"];
+  const model = VIDEO_MODELS.some((m) => m.id === opts.model) ? opts.model : "veo3_1";
+  const qualityParams = VIDEO_MODEL_PARAMS[model] ?? [];
+  const aspectParams = opts.aspect ? ["--aspect_ratio", opts.aspect] : [];
+  const args = ["generate", "create", model, "--prompt", prompt, ...aspectParams, ...qualityParams];
   if (opts.startImagePath) args.push("--start-image", opts.startImagePath);
+  args.push("--wait", "--wait-timeout", "900s", "--no-color");
 
   let stdout = "";
   try {
