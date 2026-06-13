@@ -47,6 +47,17 @@ function extractImageUrl(stdout: string): string | null {
   return extractUrl(stdout, "png|jpe?g|webp");
 }
 
+/** Friendly message for known Higgsfield errors; null if not recognised. */
+function knownLimitMessage(out: string): string | null {
+  if (/grace_daily_limit_reached|daily[_ ]limit|unlock_full_access/i.test(out)) {
+    return "Higgsfield daily generation limit reached for today. It resets tomorrow — or unlock full API access in your Higgsfield account for unlimited generations.";
+  }
+  if (/insufficient|not enough credits|credit/i.test(out) && /balance|insufficient/i.test(out)) {
+    return "Higgsfield is out of credits. Top up your Higgsfield account to keep generating.";
+  }
+  return null;
+}
+
 /** Curated image models offered in the UI, by quality/cost tier. */
 export const IMAGE_MODELS: Array<{ id: string; label: string; tier: "fast" | "premium" }> = [
   { id: "nano_banana_2", label: "Nano Banana Pro", tier: "fast" },
@@ -140,7 +151,7 @@ export async function generateVideo(
     stdout = `${e.stdout ?? ""}\n${e.stderr ?? ""}`;
     if (!extractUrl(stdout, "mp4|mov|webm")) {
       logger.warn({ err: e.message, out: stdout.slice(0, 600) }, "higgsfield: video generation failed");
-      throw new Error(`Video generation failed: ${e.message ?? "unknown error"}`);
+      throw new Error(knownLimitMessage(stdout) ?? "Video generation failed. Please try again.");
     }
   }
 
@@ -189,7 +200,7 @@ export async function generateImage(
     const url = extractImageUrl(stdout);
     if (!url) {
       logger.warn({ err: e.message, out: stdout.slice(0, 500) }, "higgsfield: generation failed");
-      throw new Error(`Image generation failed: ${e.message ?? "unknown error"}`);
+      throw new Error(knownLimitMessage(stdout) ?? "Image generation failed. Please try again.");
     }
   }
 
