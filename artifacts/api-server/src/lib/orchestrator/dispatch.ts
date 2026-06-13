@@ -41,7 +41,9 @@ Departments:
 - research: competitors, market trends, pricing intelligence, evaluating opportunities or ideas
 - finance: revenue, gap-to-target, cash flow, pricing decisions, ROI
 
-Dispatch an agent only when its department's perspective would materially improve the answer. General focus/priority/briefing questions are usually answered by the Chief of Staff alone — return an empty list for those. Never dispatch more than ${MAX_DISPATCHES} agents.
+DEFAULT TO AN EMPTY LIST. Maya answers almost everything herself, instantly, from the business data already in her context. Return [] for: greetings and chit-chat, quick questions, status/focus/priority/briefing checks, anything about the pipeline/memory/opportunities she already knows, and anything she can reasonably answer directly. Speed matters — every dispatched agent makes Jay wait many seconds.
+
+Only dispatch when the message clearly REQUIRES work Maya can't do from context: live external research (competitor/market/pricing intel, looking something up on the web) or a genuine specialist deep-dive a department must run. When in doubt, return []. Prefer 0 agents; use 1 for a focused need; 2-3 only for an explicitly cross-functional research request. Never more than ${MAX_DISPATCHES}.
 
 Each dispatched task must be one concrete, self-contained instruction phrased for that agent (e.g. "Assess which open opportunity closes the most of the revenue gap and what its next step is").
 
