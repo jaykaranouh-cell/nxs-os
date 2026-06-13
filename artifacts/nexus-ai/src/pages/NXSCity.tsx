@@ -408,34 +408,110 @@ function CityBackground({ mode }: { mode: "night" | "day" }) {
   );
 }
 
-// ─── Energy Paths ─────────────────────────────────────────────────────────────
+// ─── Live activity model ──────────────────────────────────────────────────────
+// Per-building "aliveness": how fast/bright its data flows, and whether it's in
+// an alert state (red, urgent flow). Driven by real data from the page.
 
-function EnergyPaths({ hqCx, hqCy }: { hqCx: number; hqCy: number }) {
+interface Activity { level: number; alert: boolean } // level 0..1
+
+const ALERT_RGB = "248,113,113";
+
+// ─── Motion keyframes (injected once) ─────────────────────────────────────────
+
+function CityMotionStyles() {
   return (
-    <g opacity="0.55">
+    <style>{`
+      @keyframes nxsTwinkle { 0%,100%{opacity:var(--tw-min,0.04)} 50%{opacity:var(--tw-max,0.24)} }
+      @keyframes nxsFloat {
+        0%{ transform:translateY(0); opacity:0 }
+        12%{ opacity:0.7 }
+        88%{ opacity:0.55 }
+        100%{ transform:translateY(-160px); opacity:0 }
+      }
+      @keyframes nxsFog { 0%{transform:translateX(-30px)} 100%{transform:translateX(30px)} }
+      .nxs-win  { animation: nxsTwinkle ease-in-out infinite; }
+      .nxs-dust { transform-box: fill-box; animation: nxsFloat linear infinite; }
+      .nxs-fog  { transform-box: fill-box; animation: nxsFog ease-in-out infinite alternate; }
+      @media (prefers-reduced-motion: reduce) {
+        .nxs-win, .nxs-dust, .nxs-fog { animation: none !important; }
+      }
+    `}</style>
+  );
+}
+
+// ─── Ambient atmosphere — drifting fog + floating dust ────────────────────────
+
+function AmbientLayer() {
+  // deterministic pseudo-random so SSR/render is stable (no Math.random churn)
+  const dust = Array.from({ length: 26 }, (_, i) => {
+    const x = (i * 53 + 40) % VW;
+    const y = 120 + ((i * 97) % (VH - 200));
+    const dur = 9 + (i % 7) * 2.5;
+    const delay = (i * 0.7) % dur;
+    const r = 0.6 + (i % 3) * 0.5;
+    const hue = i % 3 === 0 ? "147,197,253" : i % 3 === 1 ? "125,211,252" : "165,180,252";
+    return { x, y, dur, delay, r, hue, key: i };
+  });
+  return (
+    <g>
+      {/* slow drifting fog banks */}
+      <ellipse className="nxs-fog" style={{ animationDuration: "26s" }}
+        cx={VW * 0.34} cy={VH * 0.52} rx="360" ry="120"
+        fill="rgba(56,90,160,0.05)" filter="url(#blur12)" />
+      <ellipse className="nxs-fog" style={{ animationDuration: "34s", animationDelay: "-8s" }}
+        cx={VW * 0.66} cy={VH * 0.46} rx="320" ry="110"
+        fill="rgba(80,60,140,0.045)" filter="url(#blur12)" />
+      {/* floating dust motes rising through the scene */}
+      {dust.map(d => (
+        <circle key={d.key} className="nxs-dust"
+          style={{ animationDuration: `${d.dur}s`, animationDelay: `-${d.delay}s` }}
+          cx={d.x} cy={d.y} r={d.r}
+          fill={`rgb(${d.hue})`} opacity="0" filter="url(#glow)" />
+      ))}
+    </g>
+  );
+}
+
+// ─── Live conduits — data physically flowing between districts and HQ ─────────
+
+function conduitPath(b: CampusBuilding, hqCx: number, hqCy: number) {
+  const dx = hqCx - b.cx, dy = hqCy - b.cy;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const mx = (b.cx + hqCx) / 2;
+  const my = (b.cy + hqCy) / 2 - dist * 0.08;
+  return `M${b.cx},${b.cy} Q${mx},${my} ${hqCx},${hqCy}`;
+}
+
+function LiveConduits({ hqCx, hqCy, activity }: {
+  hqCx: number; hqCy: number; activity: Record<string, Activity>;
+}) {
+  return (
+    <g>
       {BUILDINGS.filter(b => b.id !== "hq").map(b => {
-        const dx = hqCx - b.cx;
-        const dy = hqCy - b.cy;
-        const dist = Math.sqrt(dx*dx + dy*dy);
-        // Midpoint for curved path
-        const mx = (b.cx + hqCx) / 2;
-        const my = (b.cy + hqCy) / 2 - dist * 0.08;
+        const act = activity[b.id] ?? { level: 0.15, alert: false };
+        const rgb = act.alert ? ALERT_RGB : b.glowRgb;
+        const path = conduitPath(b, hqCx, hqCy);
+        // More active → more packets, faster travel.
+        const packets = 1 + Math.round(act.level * 3);          // 1..4
+        const dur = 6.5 - act.level * 3.2;                       // ~3.3s..6.5s
+        const baseOp = 0.12 + act.level * 0.18;
         return (
           <g key={b.id}>
-            <path
-              d={`M${b.cx},${b.cy} Q${mx},${my} ${hqCx},${hqCy}`}
-              fill="none"
-              stroke={`rgba(${b.glowRgb},0.15)`}
-              strokeWidth="2"
-              strokeDasharray="6 10"
-            />
-            <path
-              d={`M${b.cx},${b.cy} Q${mx},${my} ${hqCx},${hqCy}`}
-              fill="none"
-              stroke={`rgba(${b.glowRgb},0.4)`}
-              strokeWidth="0.6"
-              filter="url(#glow)"
-            />
+            {/* faint static conduit */}
+            <path d={path} fill="none" stroke={`rgba(${rgb},0.14)`} strokeWidth="2" strokeDasharray="5 9" />
+            {/* glowing core line — brighter when active */}
+            <path d={path} fill="none" stroke={`rgba(${rgb},${baseOp + 0.18})`} strokeWidth="0.7" filter="url(#glow)" />
+            {/* travelling data packets (building → HQ) */}
+            {Array.from({ length: packets }).map((_, i) => {
+              const begin = (dur / packets) * i;
+              return (
+                <circle key={i} r={act.alert ? 2.6 : 2.1} fill={`rgb(${rgb})`} filter="url(#glow)">
+                  <animateMotion dur={`${dur}s`} begin={`-${begin}s`} repeatCount="indefinite" path={path} keyPoints="0;1" keyTimes="0;1" calcMode="linear" />
+                  <animate attributeName="opacity" dur={`${dur}s`} begin={`-${begin}s`} repeatCount="indefinite"
+                    values="0;0.95;0.95;0" keyTimes="0;0.12;0.85;1" />
+                </circle>
+              );
+            })}
           </g>
         );
       })}
@@ -450,15 +526,20 @@ function IsoBuilding({
   onClick,
   isHovered,
   onHover,
+  activity,
 }: {
   building: CampusBuilding;
   onClick: () => void;
   isHovered: boolean;
   onHover: (v: boolean) => void;
+  activity: Activity;
 }) {
   const { cx, cy, w, d, h, roofHex, leftHex, rightHex, accentHex, glowRgb, status } = building;
   const f = boxFaces({ cx, cy, w, d, h });
   const glowOp = statusGlowOpacity(status) * (isHovered ? 1.6 : 1);
+  // Window liveliness scales with the building's real activity.
+  const winMax = 0.14 + activity.level * 0.34;
+  const winDur = 5.5 - activity.level * 2.5; // busier districts twinkle faster
 
   // Floor lines on left wall
   const leftFloorLines = [];
@@ -496,11 +577,17 @@ function IsoBuilding({
       const t = (col + 0.5) / dCols;
       const wx = cx - t * d * TWH;
       const wy = cy - row * floorStep + t * d * THH - 4;
+      const seed = row * 7 + col * 13;
       windows.push(
-        <rect key={`lw${row}-${col}`}
+        <rect key={`lw${row}-${col}`} className="nxs-win"
           x={wx - 3} y={wy - 3} width={6} height={4}
-          fill={accentHex} opacity={isHovered ? 0.22 : 0.12}
-          rx="0.5"
+          fill={accentHex} rx="0.5"
+          style={{
+            ["--tw-min" as string]: "0.05",
+            ["--tw-max" as string]: String(isHovered ? winMax + 0.12 : winMax),
+            animationDuration: `${winDur + (seed % 5) * 0.5}s`,
+            animationDelay: `-${(seed % 9) * 0.6}s`,
+          }}
         />
       );
     }
@@ -511,11 +598,17 @@ function IsoBuilding({
       const t = (col + 0.5) / wCols;
       const wx = cx + t * w * TWH;
       const wy = cy - row * floorStep + t * w * THH - 4;
+      const seed = row * 11 + col * 5;
       windows.push(
-        <rect key={`rw${row}-${col}`}
+        <rect key={`rw${row}-${col}`} className="nxs-win"
           x={wx - 3} y={wy - 3} width={6} height={4}
-          fill={accentHex} opacity={isHovered ? 0.18 : 0.08}
-          rx="0.5"
+          fill={accentHex} rx="0.5"
+          style={{
+            ["--tw-min" as string]: "0.03",
+            ["--tw-max" as string]: String(isHovered ? winMax : winMax - 0.04),
+            animationDuration: `${winDur + (seed % 6) * 0.5}s`,
+            animationDelay: `-${(seed % 8) * 0.7}s`,
+          }}
         />
       );
     }
@@ -568,6 +661,16 @@ function IsoBuilding({
         filter="url(#blur6)"
       />
 
+      {/* HQ breathing aura — the command tower is always alive */}
+      {building.id === "hq" && (
+        <ellipse cx={cx} cy={cy} rx={(w + d) * TWH * 0.95} ry={(w + d) * THH * 1.05}
+          fill={`rgb(${glowRgb})`} filter="url(#blur12)">
+          <animate attributeName="opacity" dur="4.5s" repeatCount="indefinite" values="0.06;0.16;0.06" />
+          <animate attributeName="rx" dur="4.5s" repeatCount="indefinite"
+            values={`${(w + d) * TWH * 0.85};${(w + d) * TWH * 1.05};${(w + d) * TWH * 0.85}`} />
+        </ellipse>
+      )}
+
       {/* Glow halo behind building (blurred duplicate) */}
       {isHovered && (
         <>
@@ -616,9 +719,16 @@ function IsoBuilding({
       {/* Building-specific top details */}
       {antennas}
 
-      {/* Status beacon */}
-      <circle cx={beaconX} cy={beaconY} r="5" fill={beaconColor} opacity="0.2" filter="url(#blur6)" />
-      <circle cx={beaconX} cy={beaconY} r="2.5" fill={beaconColor} opacity={0.9} />
+      {/* Status beacon — blinks; alert states blink faster/harder */}
+      <circle cx={beaconX} cy={beaconY} r="5" fill={beaconColor} opacity="0.2" filter="url(#blur6)">
+        <animate attributeName="opacity" dur={status === "alert" ? "0.9s" : "2.4s"} repeatCount="indefinite"
+          values={status === "alert" ? "0.1;0.55;0.1" : "0.12;0.3;0.12"} />
+        <animate attributeName="r" dur={status === "alert" ? "0.9s" : "2.4s"} repeatCount="indefinite" values="4;7;4" />
+      </circle>
+      <circle cx={beaconX} cy={beaconY} r="2.5" fill={beaconColor}>
+        <animate attributeName="opacity" dur={status === "alert" ? "0.9s" : "2.4s"} repeatCount="indefinite"
+          values={status === "alert" ? "0.5;1;0.5" : "0.6;1;0.6"} />
+      </circle>
 
       {/* Transparent hit area for easier clicking */}
       <polygon
@@ -705,7 +815,10 @@ function BuildingLabel({
 
 // ─── City Canvas ──────────────────────────────────────────────────────────────
 
-function CityCanvas({ onSelect, mode, metrics }: { onSelect: (id: string) => void; mode: "night" | "day"; metrics: Record<string, string> }) {
+function CityCanvas({ onSelect, mode, metrics, activity }: {
+  onSelect: (id: string) => void; mode: "night" | "day";
+  metrics: Record<string, string>; activity: Record<string, Activity>;
+}) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const hq = BUILDINGS.find(b => b.id === "hq")!;
 
@@ -716,8 +829,10 @@ function CityCanvas({ onSelect, mode, metrics }: { onSelect: (id: string) => voi
       className="select-none"
     >
       <CityDefs />
+      <CityMotionStyles />
       <CityBackground mode={mode} />
-      <EnergyPaths hqCx={hq.cx} hqCy={hq.cy} />
+      <AmbientLayer />
+      <LiveConduits hqCx={hq.cx} hqCy={hq.cy} activity={activity} />
 
       {/* Buildings: painter's algorithm (back to front) */}
       {SORTED.map(b => (
@@ -727,6 +842,7 @@ function CityCanvas({ onSelect, mode, metrics }: { onSelect: (id: string) => voi
           onClick={() => onSelect(b.id)}
           isHovered={hoveredId === b.id}
           onHover={v => setHoveredId(v ? b.id : null)}
+          activity={activity[b.id] ?? { level: 0.15, alert: false }}
         />
       ))}
 
@@ -1123,6 +1239,26 @@ export default function NXSCity() {
     delivery: `${leads.filter((l) => l.stage === "won").length} active clients`,
   };
 
+  // ── Live activity → how alive each district's data flow looks ──
+  const clamp01 = (n: number) => Math.max(0.08, Math.min(1, n));
+  const atRiskCount = briefing?.atRisk?.length ?? 0;
+  const recentMem = memStatus?.recentlyAdded ?? 0;
+  const needsReview = memories.filter((m) => m.status === "needs_review").length;
+  const evaluating = opps.filter((o) => o.status === "evaluating").length;
+  const highPri = briefing?.highPriorityCount ?? 0;
+  const wonClients = leads.filter((l) => l.stage === "won").length;
+  const liveActivity: Record<string, Activity> = {
+    hq:           { level: 1,                              alert: atRiskCount >= 2 },
+    sales:        { level: clamp01(openLeadCount / 5),     alert: false },
+    memory:       { level: clamp01(0.3 + recentMem / 10),  alert: needsReview > 0 },
+    radar:        { level: clamp01(opps.length / 14),      alert: evaluating >= 3 },
+    intelligence: { level: clamp01(0.25 + highPri / 12),   alert: false },
+    finance:      { level: clamp01(0.2 + pipelineValue / 100000), alert: wonValue === 0 },
+    operations:   { level: clamp01(0.25 + atRiskCount / 4),alert: atRiskCount > 0 },
+    marketing:    { level: 0.18,                           alert: false },
+    delivery:     { level: clamp01(0.15 + wonClients / 3), alert: false },
+  };
+
   const selected = BUILDINGS.find(b => b.id === selectedId) ?? null;
 
   return (
@@ -1149,7 +1285,7 @@ export default function NXSCity() {
             <CityHero />
             <div className="relative flex-1 rounded-2xl border border-white/5 overflow-hidden bg-[#06090f]" style={{ minHeight: 480 }}>
               <div className="h-full overflow-auto">
-                <CityCanvas onSelect={setSelectedId} mode={mode} metrics={liveMetrics} />
+                <CityCanvas onSelect={setSelectedId} mode={mode} metrics={liveMetrics} activity={liveActivity} />
               </div>
               {/* HUD overlays — desktop only, never block building clicks */}
               <div className="pointer-events-none absolute inset-0 hidden lg:block">
