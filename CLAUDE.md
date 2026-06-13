@@ -34,7 +34,7 @@ Secrets live in the repo-root `.env` (gitignored; see `.env.example`):
 - Backup: `docker exec nxs-postgres pg_dump -U nxs nxs > backup.sql` — the DB holds the memory moat; back it up before risky operations
 - `ANTHROPIC_API_KEY` — required for orchestrator + department agents (claude-opus-4-6); the server boots without it but LLM calls fail
 - `NXS_ACCESS_TOKEN` — optional; when set, all `/api` routes (except `/api/healthz`) require `Authorization: Bearer <token>` and the frontend shows an unlock screen
-- `OBSIDIAN_VAULT_PATH` — optional; enables the Obsidian bridge (default points at ~/Desktop/NXS-Brain)
+- `OBSIDIAN_VAULT_PATH` — optional; enables the Obsidian bridge (default points at ~/NXS-Brain; must NOT be inside an iCloud-synced folder (Desktop/Documents) or the background service hits dataless-file errors)
 - `ELEVENLABS_API_KEY` (+ optional `ELEVENLABS_VOICE_ID`) — enables voice: Maya speaks replies (TTS) and the mic button dictates via ElevenLabs Scribe. `/api/voice/*` returns 503 without it
 - `OPENAI_API_KEY` + `LLM_<ROLE>` vars — per-role model routing through `src/lib/orchestrator/llm.ts` (roles: ROUTER, AGENT, CAPTURE, BRIEF, IDEAS, OBSIDIAN; format `provider:model`, e.g. `LLM_ROUTER=openai:gpt-4o-mini`). Unset roles default to anthropic:claude-opus-4-6. Tool-using chat synthesis is Anthropic-only
 
