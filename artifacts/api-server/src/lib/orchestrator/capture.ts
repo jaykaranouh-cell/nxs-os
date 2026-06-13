@@ -8,6 +8,7 @@ import { db, memoryProposalsTable, insertMemoryProposalSchema } from "@workspace
 import { completeText } from "./llm";
 import { z } from "zod/v4";
 import { logger } from "../logger";
+import { isDuplicateMemory } from "./embeddings";
 
 const EXTRACTION_PROMPT = `You extract durable business memory from a conversation turn between Jay (founder) and his AI Chief of Staff.
 
@@ -63,7 +64,14 @@ export function captureMemoryFromTurn(
       const parsed = proposalsSchema.safeParse(JSON.parse(extractJson(text) || "{}"));
       if (!parsed.success || parsed.data.proposals.length === 0) return;
 
-      const rows = parsed.data.proposals.map((p) =>
+      // Drop candidates that duplicate something already in memory.
+      const fresh = [];
+      for (const p of parsed.data.proposals) {
+        if (await isDuplicateMemory(`${p.title}\n${p.content}`)) continue;
+        fresh.push(p);
+      }
+      if (fresh.length === 0) return;
+      const rows = fresh.map((p) =>
         insertMemoryProposalSchema.parse({
           title: p.title,
           content: p.content,

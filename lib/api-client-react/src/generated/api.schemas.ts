@@ -362,6 +362,50 @@ export interface LlmUsageReport {
   byScope: LlmUsageScopeRow[];
 }
 
+export interface ObjectiveStep {
+  id: number;
+  title: string;
+  done: boolean;
+  ownerAgentId: string;
+}
+
+export interface Objective {
+  id: number;
+  title: string;
+  description: string;
+  status: string;
+  ownerAgentId: string;
+  targetDate?: string | null;
+  progress: number;
+  createdAt: string;
+  steps: ObjectiveStep[];
+}
+
+export interface ObjectiveStepInput {
+  title: string;
+}
+
+export interface ObjectiveInput {
+  title: string;
+  description?: string;
+  targetDate?: string;
+}
+
+export type ObjectiveProgressInputStatus = typeof ObjectiveProgressInputStatus[keyof typeof ObjectiveProgressInputStatus];
+
+
+export const ObjectiveProgressInputStatus = {
+  active: 'active',
+  achieved: 'achieved',
+  abandoned: 'abandoned',
+} as const;
+
+export interface ObjectiveProgressInput {
+  progress?: number;
+  status?: ObjectiveProgressInputStatus;
+  completeStep?: string;
+}
+
 export interface ReversibleAction {
   id: number;
   kind: string;
@@ -858,6 +902,18 @@ export interface MorningBrief {
 export type ListLeadsParams = {
 status?: string;
 stage?: string;
+};
+
+export type CreateObjective201 = {
+  id?: number;
+};
+
+export type AddObjectiveStep201 = {
+  ok?: boolean;
+};
+
+export type UpdateObjectiveProgress200 = {
+  ok?: boolean;
 };
 
 export type UndoAction200 = {

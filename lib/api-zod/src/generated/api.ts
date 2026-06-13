@@ -222,6 +222,76 @@ export const ListAgentsResponse = zod.array(ListAgentsResponseItem)
 
 
 /**
+ * @summary All objectives with their steps
+ */
+export const ListObjectivesResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "status": zod.string(),
+  "ownerAgentId": zod.string(),
+  "targetDate": zod.string().nullish(),
+  "progress": zod.number(),
+  "createdAt": zod.string(),
+  "steps": zod.array(zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "done": zod.boolean(),
+  "ownerAgentId": zod.string()
+}))
+})
+export const ListObjectivesResponse = zod.array(ListObjectivesResponseItem)
+
+
+/**
+ * @summary Create an objective
+ */
+export const CreateObjectiveBody = zod.object({
+  "title": zod.string(),
+  "description": zod.string().optional(),
+  "targetDate": zod.string().optional()
+})
+
+export const CreateObjectiveResponse = zod.object({
+  "id": zod.number().optional()
+})
+
+
+/**
+ * @summary Add a step
+ */
+export const AddObjectiveStepParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AddObjectiveStepBody = zod.object({
+  "title": zod.string()
+})
+
+export const AddObjectiveStepResponse = zod.object({
+  "ok": zod.boolean().optional()
+})
+
+
+/**
+ * @summary Update progress, status, or complete a step
+ */
+export const UpdateObjectiveProgressParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateObjectiveProgressBody = zod.object({
+  "progress": zod.number().optional(),
+  "status": zod.enum(['active', 'achieved', 'abandoned']).optional(),
+  "completeStep": zod.string().optional()
+})
+
+export const UpdateObjectiveProgressResponse = zod.object({
+  "ok": zod.boolean().optional()
+})
+
+
+/**
  * @summary Recent undoable agent actions
  */
 export const ListReversibleActionsResponseItem = zod.object({

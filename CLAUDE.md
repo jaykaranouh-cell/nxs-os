@@ -102,6 +102,15 @@ The api-server loads the root `.env` via `node --env-file-if-exists`; drizzle-ki
 - Stale `*.tsbuildinfo` files can make `tsc --build` skip emitting lib `dist/` — delete them and `npx tsc --build --force` if api-server typecheck reports TS6305
 - To tune agent behaviour, edit the system prompts in `src/lib/orchestrator/agents.ts` and the routing rules in `dispatch.ts`
 
+## Guardrails, objectives & maintenance
+
+- **Spend ceiling** (`src/lib/orchestrator/budget.ts`): `NXS_DAILY_BUDGET_USD` halts all LLM calls once today's estimated spend crosses it; chat returns a clear message. Today's spend + cap show in the home digest. Pricing is shared in `pricing.ts` (used by the usage report too).
+- **Undo** (`reversible_actions` table, `routes/actions.ts`): lead-stage and opportunity-status changes are recorded; GET /actions/reversible + POST /actions/:id/undo; one-click undo in the home feed.
+- **Memory hygiene**: capture + Obsidian ingest run a pgvector dedup check (`isDuplicateMemory`) before creating proposals; a weekly gardener (`gardener.ts`, Sun 05:00) archives near-duplicate active memories. Never deletes.
+- **Objectives** (`objectives` + `objective_steps` tables, `objectives.ts`): multi-day plays with steps, owners, progress. Maya's create_objective/update_objective tools; active objectives inject into every prompt; managed on the Command Centre. API: GET/POST /objectives, POST /objectives/:id/steps, POST /objectives/:id/progress.
+- **Calendar ingest** (`calendar.ts`, no OAuth): set `NXS_CALENDAR_ICS_URL` to a private iCal URL; upcoming events (7 days) inject into context, and finished meetings become memory proposals hourly.
+- **Eval harness** (`tests/evals.test.ts`): deterministic CI checks on prompt assembly, response modes, guardrails, and the tool surface.
+
 ## Future integrations
 
 CRM, email, calendar, social media tools, accounting systems — all routes are designed with placeholder data and clear extension points.

@@ -165,6 +165,9 @@ export function buildContextSections(ctx: OrchestratorContext): string[] {
     );
   }
 
+  if (ctx.objectivesBlock) sections.push(ctx.objectivesBlock);
+  if (ctx.calendarBlock) sections.push(ctx.calendarBlock);
+
   sections.push(
     `## Memory Stats\nJay has ${ctx.totalMemory} total memory entries across goals, decisions, lessons, and opportunities.`
   );

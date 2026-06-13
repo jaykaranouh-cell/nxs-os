@@ -21,6 +21,7 @@ import type {
 
 import type {
   AddAgentKb201,
+  AddObjectiveStep201,
   Agent,
   AgentInstructionsInput,
   AgentKbInput,
@@ -35,6 +36,7 @@ import type {
   ChatMessageInput,
   ChatResponse,
   ConnectedMemory,
+  CreateObjective201,
   DailyPlan,
   DashboardMetrics,
   Decision,
@@ -67,6 +69,10 @@ import type {
   MemoryEntryUpdate,
   MemoryProposal,
   MorningBrief,
+  Objective,
+  ObjectiveInput,
+  ObjectiveProgressInput,
+  ObjectiveStepInput,
   OpportunityInput,
   OpportunityItem,
   OpportunityUpdate,
@@ -80,7 +86,8 @@ import type {
   SetupSectionResponse,
   SystemContext,
   SystemContextInput,
-  UndoAction200
+  UndoAction200,
+  UpdateObjectiveProgress200
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -698,6 +705,295 @@ export function useListAgents<TData = Awaited<ReturnType<typeof listAgents>>, TE
 
 
 
+
+export const getListObjectivesUrl = () => {
+
+
+
+
+  return `/api/objectives`
+}
+
+/**
+ * @summary All objectives with their steps
+ */
+export const listObjectives = async ( options?: RequestInit): Promise<Objective[]> => {
+
+  return customFetch<Objective[]>(getListObjectivesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListObjectivesQueryKey = () => {
+    return [
+    `/api/objectives`
+    ] as const;
+    }
+
+
+export const getListObjectivesQueryOptions = <TData = Awaited<ReturnType<typeof listObjectives>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listObjectives>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListObjectivesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listObjectives>>> = ({ signal }) => listObjectives({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listObjectives>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListObjectivesQueryResult = NonNullable<Awaited<ReturnType<typeof listObjectives>>>
+export type ListObjectivesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary All objectives with their steps
+ */
+
+export function useListObjectives<TData = Awaited<ReturnType<typeof listObjectives>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listObjectives>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListObjectivesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateObjectiveUrl = () => {
+
+
+
+
+  return `/api/objectives`
+}
+
+/**
+ * @summary Create an objective
+ */
+export const createObjective = async (objectiveInput: ObjectiveInput, options?: RequestInit): Promise<CreateObjective201> => {
+
+  return customFetch<CreateObjective201>(getCreateObjectiveUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(objectiveInput)
+  }
+);}
+
+
+
+
+export const getCreateObjectiveMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createObjective>>, TError,{data: BodyType<ObjectiveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createObjective>>, TError,{data: BodyType<ObjectiveInput>}, TContext> => {
+
+const mutationKey = ['createObjective'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createObjective>>, {data: BodyType<ObjectiveInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createObjective(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateObjectiveMutationResult = NonNullable<Awaited<ReturnType<typeof createObjective>>>
+    export type CreateObjectiveMutationBody = BodyType<ObjectiveInput>
+    export type CreateObjectiveMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create an objective
+ */
+export const useCreateObjective = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createObjective>>, TError,{data: BodyType<ObjectiveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createObjective>>,
+        TError,
+        {data: BodyType<ObjectiveInput>},
+        TContext
+      > => {
+      return useMutation(getCreateObjectiveMutationOptions(options));
+    }
+
+export const getAddObjectiveStepUrl = (id: number,) => {
+
+
+
+
+  return `/api/objectives/${id}/steps`
+}
+
+/**
+ * @summary Add a step
+ */
+export const addObjectiveStep = async (id: number,
+    objectiveStepInput: ObjectiveStepInput, options?: RequestInit): Promise<AddObjectiveStep201> => {
+
+  return customFetch<AddObjectiveStep201>(getAddObjectiveStepUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(objectiveStepInput)
+  }
+);}
+
+
+
+
+export const getAddObjectiveStepMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addObjectiveStep>>, TError,{id: number;data: BodyType<ObjectiveStepInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addObjectiveStep>>, TError,{id: number;data: BodyType<ObjectiveStepInput>}, TContext> => {
+
+const mutationKey = ['addObjectiveStep'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addObjectiveStep>>, {id: number;data: BodyType<ObjectiveStepInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  addObjectiveStep(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddObjectiveStepMutationResult = NonNullable<Awaited<ReturnType<typeof addObjectiveStep>>>
+    export type AddObjectiveStepMutationBody = BodyType<ObjectiveStepInput>
+    export type AddObjectiveStepMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Add a step
+ */
+export const useAddObjectiveStep = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addObjectiveStep>>, TError,{id: number;data: BodyType<ObjectiveStepInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addObjectiveStep>>,
+        TError,
+        {id: number;data: BodyType<ObjectiveStepInput>},
+        TContext
+      > => {
+      return useMutation(getAddObjectiveStepMutationOptions(options));
+    }
+
+export const getUpdateObjectiveProgressUrl = (id: number,) => {
+
+
+
+
+  return `/api/objectives/${id}/progress`
+}
+
+/**
+ * @summary Update progress, status, or complete a step
+ */
+export const updateObjectiveProgress = async (id: number,
+    objectiveProgressInput: ObjectiveProgressInput, options?: RequestInit): Promise<UpdateObjectiveProgress200> => {
+
+  return customFetch<UpdateObjectiveProgress200>(getUpdateObjectiveProgressUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(objectiveProgressInput)
+  }
+);}
+
+
+
+
+export const getUpdateObjectiveProgressMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateObjectiveProgress>>, TError,{id: number;data: BodyType<ObjectiveProgressInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateObjectiveProgress>>, TError,{id: number;data: BodyType<ObjectiveProgressInput>}, TContext> => {
+
+const mutationKey = ['updateObjectiveProgress'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateObjectiveProgress>>, {id: number;data: BodyType<ObjectiveProgressInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateObjectiveProgress(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateObjectiveProgressMutationResult = NonNullable<Awaited<ReturnType<typeof updateObjectiveProgress>>>
+    export type UpdateObjectiveProgressMutationBody = BodyType<ObjectiveProgressInput>
+    export type UpdateObjectiveProgressMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update progress, status, or complete a step
+ */
+export const useUpdateObjectiveProgress = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateObjectiveProgress>>, TError,{id: number;data: BodyType<ObjectiveProgressInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateObjectiveProgress>>,
+        TError,
+        {id: number;data: BodyType<ObjectiveProgressInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateObjectiveProgressMutationOptions(options));
+    }
 
 export const getListReversibleActionsUrl = () => {
 

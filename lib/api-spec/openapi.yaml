@@ -184,6 +184,67 @@ paths:
                 items:
                   $ref: "#/components/schemas/Agent"
 
+  /objectives:
+    get:
+      operationId: listObjectives
+      tags: [objectives]
+      summary: All objectives with their steps
+      responses:
+        "200":
+          description: Objectives
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Objective" }
+    post:
+      operationId: createObjective
+      tags: [objectives]
+      summary: Create an objective
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ObjectiveInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { id: { type: integer } }
+
+  /objectives/{id}/steps:
+    post:
+      operationId: addObjectiveStep
+      tags: [objectives]
+      summary: Add a step
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ObjectiveStepInput" }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean } } } } } }
+
+  /objectives/{id}/progress:
+    post:
+      operationId: updateObjectiveProgress
+      tags: [objectives]
+      summary: Update progress, status, or complete a step
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ObjectiveProgressInput" }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean } } } } } }
+
   /actions/reversible:
     get:
       operationId: listReversibleActions
@@ -1749,6 +1810,52 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/LlmUsageScopeRow"
+
+    ObjectiveStep:
+      type: object
+      required: [id, title, done, ownerAgentId]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        done: { type: boolean }
+        ownerAgentId: { type: string }
+
+    Objective:
+      type: object
+      required: [id, title, description, status, ownerAgentId, progress, steps, createdAt]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        description: { type: string }
+        status: { type: string }
+        ownerAgentId: { type: string }
+        targetDate: { type: string, nullable: true }
+        progress: { type: integer }
+        createdAt: { type: string }
+        steps:
+          type: array
+          items: { $ref: "#/components/schemas/ObjectiveStep" }
+
+    ObjectiveStepInput:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string }
+
+    ObjectiveInput:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        targetDate: { type: string }
+
+    ObjectiveProgressInput:
+      type: object
+      properties:
+        progress: { type: integer }
+        status: { type: string, enum: [active, achieved, abandoned] }
+        completeStep: { type: string }
 
     ReversibleAction:
       type: object

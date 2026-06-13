@@ -25,6 +25,7 @@ import { DEPARTMENT_AGENTS, getAgent } from "./agents";
 import { runDepartmentAgent, sendAgentMessage } from "./dispatch";
 import { setAgentName } from "./roster";
 import { setAgentInstructions, addAgentKb } from "./profile";
+import { createObjective, addObjectiveStep, updateObjectiveProgress } from "./objectives";
 import { notifyJay } from "../notify";
 import { BROWSER_TOOL_DEFINITIONS, runBrowserTool, isBrowserTool } from "./browser";
 import { loadContext } from "./context";
@@ -321,6 +322,72 @@ const notifyJayTool = {
     });
     await logAction("Notified Jay", input.title);
     return sent ? `Push sent: "${input.title}"` : "Push not configured (NXS_NTFY_TOPIC unset)";
+  },
+};
+
+const createObjectiveSchema = z.object({
+  title: z.string().min(3),
+  description: z.string().optional(),
+  ownerAgentId: z.enum(["orchestrator", "sales", "marketing", "research", "finance"]).optional(),
+  targetDate: z.string().optional(),
+  steps: z.array(z.string()).optional(),
+});
+
+const createObjectiveTool = {
+  definition: {
+    name: "create_objective",
+    description:
+      "Create a multi-day objective (a play the team drives toward over time), optionally with initial steps. Use for goals bigger than a single task, like closing a specific deal or launching a content engine.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        title: { type: "string" },
+        description: { type: "string" },
+        ownerAgentId: { type: "string", enum: ["orchestrator", "sales", "marketing", "research", "finance"] },
+        targetDate: { type: "string", description: "Optional, e.g. 'Fri' or 'Dec 31'" },
+        steps: { type: "array", items: { type: "string" }, description: "Optional initial steps" },
+      },
+      required: ["title"],
+    },
+  },
+  schema: createObjectiveSchema,
+  async run(input: z.infer<typeof createObjectiveSchema>): Promise<string> {
+    const id = await createObjective(input);
+    for (const step of input.steps ?? []) await addObjectiveStep(id, step, input.ownerAgentId);
+    await logAction("Created objective", input.title);
+    return `Objective created: "${input.title}" (#${id})${input.steps?.length ? ` with ${input.steps.length} steps` : ""}`;
+  },
+};
+
+const updateObjectiveSchema = z.object({
+  objectiveId: z.number().int(),
+  completeStep: z.string().optional(),
+  progress: z.number().int().min(0).max(100).optional(),
+  status: z.enum(["active", "achieved", "abandoned"]).optional(),
+});
+
+const updateObjectiveTool = {
+  definition: {
+    name: "update_objective",
+    description:
+      "Update an objective: mark a step complete, set progress, or change status. Progress auto-derives from completed steps if not set.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        objectiveId: { type: "integer" },
+        completeStep: { type: "string", description: "Title (or part) of a step to mark done" },
+        progress: { type: "integer" },
+        status: { type: "string", enum: ["active", "achieved", "abandoned"] },
+      },
+      required: ["objectiveId"],
+    },
+  },
+  schema: updateObjectiveSchema,
+  async run(input: z.infer<typeof updateObjectiveSchema>): Promise<string> {
+    const ok = await updateObjectiveProgress(input.objectiveId, input);
+    if (!ok) throw new Error(`Objective #${input.objectiveId} not found`);
+    await logAction("Updated objective", `#${input.objectiveId}`);
+    return `Objective #${input.objectiveId} updated`;
   },
 };
 
@@ -668,7 +735,7 @@ export const COMPUTER_TOOL_DEFINITIONS: Anthropic.Tool[] = COMPUTER_TOOLS.map((t
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 
-const BASE_TOOLS = [createMemoryEntry, updateLeadStage, createAgentTask, logIdea, updateOpportunity, createOpportunity, dispatchAgent, spawnAgent, messageTeam, nameAgent, notifyJayTool, instructAgent, teachAgent];
+const BASE_TOOLS = [createMemoryEntry, updateLeadStage, createAgentTask, logIdea, updateOpportunity, createOpportunity, dispatchAgent, spawnAgent, messageTeam, nameAgent, notifyJayTool, instructAgent, teachAgent, createObjectiveTool, updateObjectiveTool];
 const TOOLS = [...BASE_TOOLS, ...COMPUTER_TOOLS];
 
 export const TOOL_DEFINITIONS: Anthropic.Tool[] = [

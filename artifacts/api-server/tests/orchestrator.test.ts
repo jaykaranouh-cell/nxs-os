@@ -10,6 +10,8 @@ function makeCtx(overrides: Partial<OrchestratorContext> = {}): OrchestratorCont
   return {
     brain: null,
     teamMessages: [],
+    objectivesBlock: "",
+    calendarBlock: "",
     goals: [],
     decisions: [],
     lessons: [],
@@ -116,6 +118,8 @@ describe("tools", () => {
     expect(names).toContain("browse_page");
     expect(names).toContain("instruct_agent");
     expect(names).toContain("teach_agent");
+    expect(names).toContain("create_objective");
+    expect(names).toContain("update_objective");
   });
 
   it("agent tools validate before any LLM or DB work", async () => {

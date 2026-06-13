@@ -16,6 +16,7 @@ import voiceRouter from "./voice";
 import homeRouter from "./home";
 import agentProfileRouter from "./agentProfile";
 import actionsRouter from "./actions";
+import objectivesRouter from "./objectives";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use(voiceRouter);
 router.use(homeRouter);
 router.use(agentProfileRouter);
 router.use(actionsRouter);
+router.use(objectivesRouter);
 
 export default router;

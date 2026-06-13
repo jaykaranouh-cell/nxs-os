@@ -15,6 +15,8 @@ import { buildAgentBriefing } from "./orchestrator/prompts";
 import { runObsidianSync } from "./obsidian";
 import { runGrowthSession } from "./orchestrator/autonomy";
 import { backfillEmbeddings } from "./orchestrator/embeddings";
+import { runMemoryGardener } from "./orchestrator/gardener";
+import { ingestPastMeetings } from "./calendar";
 import { logger } from "./logger";
 import { notifyJay } from "./notify";
 
@@ -147,9 +149,12 @@ export function startScheduler(): void {
   // 17:00 daily: Maya's autonomous growth strategy session
   cron.schedule("0 17 * * *", safely("growth-session", async () => { await runGrowthSession(); }));
   cron.schedule("0 4 * * *", safely("mailbox-cleanup", mailboxCleanupJob));
+  // Sunday 05:00: archive near-duplicate memories
+  cron.schedule("0 5 * * 0", safely("memory-gardener", async () => { await runMemoryGardener(); }));
   // Obsidian bridge: ingest inbox + mirror memory every 10 minutes, and once at boot
   cron.schedule("*/10 * * * *", safely("obsidian-sync", runObsidianSync));
   cron.schedule("*/10 * * * *", safely("embeddings", backfillEmbeddings));
+  cron.schedule("0 * * * *", safely("calendar", async () => { await ingestPastMeetings(); }));
   void safely("obsidian-sync", runObsidianSync)();
   void safely("embeddings", backfillEmbeddings)();
   logger.info("scheduler: jobs registered (brief 07:00, watchdog 07:30, ideas Mon 08:00, growth 17:00, obsidian */10m)");

@@ -68,6 +68,8 @@ export interface TeamMessage {
 export interface OrchestratorContext {
   brain: BrainData | null;
   teamMessages: TeamMessage[];
+  objectivesBlock: string;
+  calendarBlock: string;
   goals: MemRow[];
   decisions: MemRow[];
   lessons: MemRow[];
@@ -106,8 +108,12 @@ export async function loadContext(query?: string): Promise<OrchestratorContext> 
   // Relevance-aware loading: when a query is given and embeddings exist,
   // merge the semantically closest entries with the most recent ones.
   const { semanticSearch, embeddingsEnabled } = await import("./embeddings");
+  const { activeObjectivesBlock } = await import("./objectives");
+  const { upcomingEventsBlock } = await import("../calendar");
   const semanticPromise =
     query && embeddingsEnabled() ? semanticSearch(query, 30).catch(() => []) : Promise.resolve([]);
+  const objectivesPromise = activeObjectivesBlock().catch(() => "");
+  const calendarPromise = upcomingEventsBlock().catch(() => "");
 
   const [recentMemory, allOpps, ctxRows, teamRows, semantic] = await Promise.all([
     db
@@ -175,8 +181,12 @@ export async function loadContext(query?: string): Promise<OrchestratorContext> 
   const hotOpps = activeOpps.filter((o) => o.priority === "critical" || o.priority === "high");
   const notPursued = activeOpps.filter((o) => o.status === "new" || o.status === "evaluating");
 
+  const [objectivesBlock, calendarBlock] = await Promise.all([objectivesPromise, calendarPromise]);
+
   return {
     brain,
+    objectivesBlock,
+    calendarBlock,
     teamMessages: teamRows.reverse().map((m) => ({
       fromAgentName: m.fromAgentName,
       toAgentId: m.toAgentId,

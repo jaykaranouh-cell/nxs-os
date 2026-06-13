@@ -7,6 +7,7 @@
  */
 
 export * from './addAgentKb201';
+export * from './addObjectiveStep201';
 export * from './agent';
 export * from './agentAction';
 export * from './agentInstructionsInput';
@@ -30,6 +31,7 @@ export * from './chatMessageInput';
 export * from './chatMessageInputExecutionLevel';
 export * from './chatResponse';
 export * from './connectedMemory';
+export * from './createObjective201';
 export * from './dailyAction';
 export * from './dailyIgnoreItem';
 export * from './dailyMission';
@@ -87,6 +89,12 @@ export * from './morningBriefOpportunity';
 export * from './morningBriefPipelinePulse';
 export * from './morningBriefRisk';
 export * from './morningBriefWeekFocus';
+export * from './objective';
+export * from './objectiveInput';
+export * from './objectiveProgressInput';
+export * from './objectiveProgressInputStatus';
+export * from './objectiveStep';
+export * from './objectiveStepInput';
 export * from './opportunityInput';
 export * from './opportunityItem';
 export * from './opportunityUpdate';
@@ -112,3 +120,4 @@ export * from './suggestedConnection';
 export * from './systemContext';
 export * from './systemContextInput';
 export * from './undoAction200';
+export * from './updateObjectiveProgress200';

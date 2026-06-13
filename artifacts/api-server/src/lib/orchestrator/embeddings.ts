@@ -60,3 +60,26 @@ export async function semanticSearch(query: string, limit = 30): Promise<MemRow[
     .orderBy(sql`${memoryEntriesTable.embedding} <=> ${JSON.stringify(vec)}::vector`)
     .limit(limit);
 }
+
+/** Cosine distance via pgvector: returns the nearest existing entry + distance. */
+export async function nearestMemory(text: string): Promise<{ id: number; title: string; distance: number } | null> {
+  const vec = await embedText(text);
+  if (!vec) return null;
+  const rows = await db
+    .select({
+      id: memoryEntriesTable.id,
+      title: memoryEntriesTable.title,
+      distance: sql<number>`${memoryEntriesTable.embedding} <=> ${JSON.stringify(vec)}::vector`,
+    })
+    .from(memoryEntriesTable)
+    .where(isNotNull(memoryEntriesTable.embedding))
+    .orderBy(sql`${memoryEntriesTable.embedding} <=> ${JSON.stringify(vec)}::vector`)
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** True when text is near-duplicate of an existing memory (cosine distance < threshold). */
+export async function isDuplicateMemory(text: string, threshold = 0.12): Promise<boolean> {
+  const near = await nearestMemory(text);
+  return near != null && near.distance < threshold;
+}
