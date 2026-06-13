@@ -433,7 +433,12 @@ export default function Orchestrator() {
             }
             if (typeof d.content === "string") { fullText += d.content; setStreamingContent((p) => p + d.content); }
             if (d.done === true) {
-              queryClient.invalidateQueries({ queryKey: getListChatMessagesQueryKey({ limit: 50 }) });
+              // Wait for the refetch to settle so the persisted user + reply are
+              // in the list BEFORE we drop the optimistic copies — otherwise the
+              // optimistic user bubble lingers and appears duplicated.
+              await queryClient.invalidateQueries({ queryKey: getListChatMessagesQueryKey({ limit: 50 }) });
+              setLocalUserMessage(null);
+              setStreamingContent("");
               if (voiceOnRef.current && fullText) void speakMessage("live", fullText);
               break outer;
             }
@@ -442,7 +447,9 @@ export default function Orchestrator() {
       }
     } catch (err) {
       console.error("Stream error:", err);
-      queryClient.invalidateQueries({ queryKey: getListChatMessagesQueryKey({ limit: 50 }) });
+      await queryClient.invalidateQueries({ queryKey: getListChatMessagesQueryKey({ limit: 50 }) });
+      setLocalUserMessage(null);
+      setStreamingContent("");
     } finally {
       setIsStreaming(false);
       setConsulting([]);
