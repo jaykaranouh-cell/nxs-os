@@ -8,6 +8,7 @@ import { completeText } from "./llm";
 import { DEPARTMENT_AGENTS, getAgent, type AgentDefinition } from "./agents";
 import { displayName } from "./roster";
 import { BROWSER_TOOL_DEFINITIONS, runBrowserTool, isBrowserTool } from "./browser";
+import { buildAgentProfileBlock, rememberForAgent } from "./profile";
 import type { OrchestratorContext } from "./context";
 import { buildAgentBriefing } from "./prompts";
 
@@ -145,6 +146,19 @@ function agentCommTools(selfId: string): Anthropic.Tool[] {
         required: ["to", "content"],
       },
     },
+    {
+      name: "remember",
+      description:
+        "Save a private note to your own memory for future tasks (a lesson, a fact you learned, a useful detail). Only you see these notes; they're added to your briefing next time you run.",
+      input_schema: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Short label" },
+          content: { type: "string", description: "What to remember" },
+        },
+        required: ["title", "content"],
+      },
+    },
     ...BROWSER_TOOL_DEFINITIONS,
   ];
 }
@@ -157,16 +171,15 @@ export async function runDepartmentAgent(
 ): Promise<AgentRun | null> {
   const definition = getAgent(dispatch.agentId);
   if (!definition) return null;
-  const name = await displayName(definition.id);
-  // Carry the Maya-given name so logs, events, and reports all use it.
-  const agent: AgentDefinition = {
-    ...definition,
-    name,
-    systemPrompt:
-      name === definition.name
-        ? definition.systemPrompt
-        : `Your name is ${name}. ${definition.systemPrompt}`,
-  };
+  const [name, profileBlock] = await Promise.all([
+    displayName(definition.id),
+    buildAgentProfileBlock(definition.id),
+  ]);
+  // Persona = base + Maya-given name + this agent's own instructions/skills/knowledge/memory.
+  const persona =
+    (name === definition.name ? definition.systemPrompt : `Your name is ${name}. ${definition.systemPrompt}`) +
+    profileBlock;
+  const agent: AgentDefinition = { ...definition, name, systemPrompt: persona };
 
   const [task] = await db
     .insert(agentTasksTable)
@@ -215,7 +228,7 @@ export async function runDepartmentAgent(
               text:
                 agent.systemPrompt +
                 mailbox +
-                "\n\nYou can consult teammates with ask_agent, leave notes with send_message, and use the web: web_search to find information and browse_page to read any page (read-only). Research the real web when it sharpens your findings. Consult at most one teammate, only when their domain materially changes your answer.",
+                "\n\nYou can consult teammates with ask_agent, leave notes with send_message, save private notes for yourself with remember, and use the web: web_search and browse_page (read-only). Use your playbooks and knowledge base above. Consult at most one teammate, only when their domain materially changes your answer.",
             },
           ],
           messages,
@@ -261,6 +274,10 @@ export async function runDepartmentAgent(
               const input = block.input as { to: string; content: string };
               await sendAgentMessage(agent.id, agent.name, input.to, input.content);
               results.push({ type: "tool_result", tool_use_id: block.id, content: `Message left for ${input.to}` });
+            } else if (block.name === "remember") {
+              const input = block.input as { title: string; content: string };
+              await rememberForAgent(agent.id, input.title, input.content);
+              results.push({ type: "tool_result", tool_use_id: block.id, content: `Saved to your memory: ${input.title}` });
             } else if (isBrowserTool(block.name)) {
               const out = await runBrowserTool(block.name, block.input);
               results.push({ type: "tool_result", tool_use_id: block.id, content: out });

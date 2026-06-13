@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { ExpandableText } from "@/components/ExpandableText";
+import { AgentProfileModal } from "@/components/AgentProfileModal";
 
 type ExecLevel = "green" | "amber" | "red";
 
@@ -209,7 +210,7 @@ function CoreAgentCard({ agent, execLevel, onExecChange }: {
   );
 }
 
-function DeptModeCard({ mode, onToggle }: { mode: DeptMode; onToggle: (id: string) => void }) {
+function DeptModeCard({ mode, onToggle, onProfile }: { mode: DeptMode; onToggle: (id: string) => void; onProfile: (id: string, name: string) => void }) {
   const ac = ACCENT_COLORS[mode.accent];
   const ModeIcon = mode.icon;
 
@@ -229,9 +230,17 @@ function DeptModeCard({ mode, onToggle }: { mode: DeptMode; onToggle: (id: strin
           </button>
         </div>
         <p className="text-[10px] text-muted-foreground leading-relaxed">{mode.description}</p>
-        <div className="flex items-center gap-1 mt-2">
-          <Clock className="h-2.5 w-2.5 text-muted-foreground/40" />
-          <span className="text-[9px] text-muted-foreground/50">Last dispatch: {mode.lastDispatch}</span>
+        <div className="flex items-center justify-between gap-1 mt-2">
+          <div className="flex items-center gap-1">
+            <Clock className="h-2.5 w-2.5 text-muted-foreground/40" />
+            <span className="text-[9px] text-muted-foreground/50">Last dispatch: {mode.lastDispatch}</span>
+          </div>
+          <button
+            onClick={() => onProfile(mode.id, mode.name.replace(/ Mode$/, ""))}
+            className="text-[9px] px-2 py-0.5 rounded-full border border-primary/25 text-primary/70 hover:bg-primary/10 transition-colors flex items-center gap-1"
+          >
+            <Brain className="h-2.5 w-2.5" /> Profile
+          </button>
         </div>
       </CardContent>
     </Card>
@@ -291,6 +300,7 @@ export default function Agents() {
     memory: "green", intelligence: "amber", execution: "amber", communication: "red",
   });
   const [deptModes, setDeptModes] = useState(DEPT_MODES);
+  const [profileAgent, setProfileAgent] = useState<{ id: string; name: string } | null>(null);
   const { data: recentActivity, isLoading: activityLoading } = useGetRecentAgentActivity();
   const { data: teamMessages } = useListAgentMessages();
 
@@ -414,10 +424,19 @@ export default function Agents() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {deptModes.map((mode) => (
-            <DeptModeCard key={mode.id} mode={mode} onToggle={toggleDeptMode} />
+            <DeptModeCard key={mode.id} mode={mode} onToggle={toggleDeptMode} onProfile={(id, name) => setProfileAgent({ id, name })} />
           ))}
         </div>
       </div>
+
+      {profileAgent && (
+        <AgentProfileModal
+          agentId={profileAgent.id}
+          agentName={profileAgent.name}
+          open={!!profileAgent}
+          onOpenChange={(v) => { if (!v) setProfileAgent(null); }}
+        />
+      )}
 
 {/* Team Channel — inter-agent mailbox */}
       <div className="space-y-3">

@@ -292,6 +292,79 @@ export const ListAgentMessagesResponse = zod.array(ListAgentMessagesResponseItem
 
 
 /**
+ * @summary An agent's instructions, skills, knowledge, and private memory
+ */
+export const GetAgentProfileParams = zod.object({
+  "agentId": zod.coerce.string()
+})
+
+export const GetAgentProfileResponse = zod.object({
+  "instructions": zod.string(),
+  "skills": zod.array(zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "content": zod.string()
+})),
+  "knowledge": zod.array(zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "content": zod.string()
+})),
+  "memory": zod.array(zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "content": zod.string(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Set an agent's standing instructions
+ */
+export const SetAgentInstructionsParams = zod.object({
+  "agentId": zod.coerce.string()
+})
+
+export const SetAgentInstructionsBody = zod.object({
+  "instructions": zod.string()
+})
+
+export const SetAgentInstructionsResponse = zod.object({
+  "ok": zod.boolean().optional()
+})
+
+
+/**
+ * @summary Add a skill or knowledge entry to an agent
+ */
+export const AddAgentKbParams = zod.object({
+  "agentId": zod.coerce.string()
+})
+
+export const AddAgentKbBody = zod.object({
+  "kind": zod.enum(['skill', 'knowledge']),
+  "title": zod.string(),
+  "content": zod.string()
+})
+
+export const AddAgentKbResponse = zod.object({
+  "id": zod.number().optional()
+})
+
+
+/**
+ * @summary Delete a skill or knowledge entry
+ */
+export const DeleteAgentKbParams = zod.object({
+  "agentId": zod.coerce.string(),
+  "kbId": zod.coerce.number()
+})
+
+export const DeleteAgentKbResponse = zod.void()
+
+
+/**
  * @summary Ask a department agent a question directly
  */
 export const AskAgentParams = zod.object({

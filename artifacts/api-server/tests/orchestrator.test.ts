@@ -114,6 +114,8 @@ describe("tools", () => {
     expect(names).toContain("spawn_agent");
     expect(names).toContain("web_search");
     expect(names).toContain("browse_page");
+    expect(names).toContain("instruct_agent");
+    expect(names).toContain("teach_agent");
   });
 
   it("agent tools validate before any LLM or DB work", async () => {

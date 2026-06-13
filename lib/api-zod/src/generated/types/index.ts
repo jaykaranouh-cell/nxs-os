@@ -6,10 +6,17 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './addAgentKb201';
 export * from './agent';
 export * from './agentAction';
+export * from './agentInstructionsInput';
+export * from './agentKbInput';
+export * from './agentKbInputKind';
+export * from './agentKbItem';
 export * from './agentLog';
 export * from './agentMessage';
+export * from './agentProfile';
+export * from './agentProfileMemoryItem';
 export * from './agentTask';
 export * from './agentTaskInput';
 export * from './agentTaskUpdate';
@@ -87,6 +94,7 @@ export * from './pipelineReport';
 export * from './pipelineStage';
 export * from './qualificationResult';
 export * from './recommendedAction';
+export * from './setAgentInstructions200';
 export * from './setupCompletionStatus';
 export * from './setupContext';
 export * from './setupContextBusinessProfile';

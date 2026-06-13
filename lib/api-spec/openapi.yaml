@@ -228,6 +228,94 @@ paths:
                 items:
                   $ref: "#/components/schemas/AgentMessage"
 
+  /agents/{agentId}/profile:
+    get:
+      operationId: getAgentProfile
+      tags: [agents]
+      summary: An agent's instructions, skills, knowledge, and private memory
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Agent profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentProfile"
+
+  /agents/{agentId}/instructions:
+    put:
+      operationId: setAgentInstructions
+      tags: [agents]
+      summary: Set an agent's standing instructions
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentInstructionsInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+
+  /agents/{agentId}/kb:
+    post:
+      operationId: addAgentKb
+      tags: [agents]
+      summary: Add a skill or knowledge entry to an agent
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentKbInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+
+  /agents/{agentId}/kb/{kbId}:
+    delete:
+      operationId: deleteAgentKb
+      tags: [agents]
+      summary: Delete a skill or knowledge entry
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: kbId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Deleted
+
   /agents/{agentId}/ask:
     post:
       operationId: askAgent
@@ -1703,6 +1791,50 @@ components:
           type: object
           additionalProperties:
             type: integer
+
+    AgentInstructionsInput:
+      type: object
+      required: [instructions]
+      properties:
+        instructions: { type: string }
+
+    AgentKbItem:
+      type: object
+      required: [id, title, content]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        content: { type: string }
+
+    AgentKbInput:
+      type: object
+      required: [kind, title, content]
+      properties:
+        kind: { type: string, enum: [skill, knowledge] }
+        title: { type: string }
+        content: { type: string }
+
+    AgentProfile:
+      type: object
+      required: [instructions, skills, knowledge, memory]
+      properties:
+        instructions: { type: string }
+        skills:
+          type: array
+          items: { $ref: "#/components/schemas/AgentKbItem" }
+        knowledge:
+          type: array
+          items: { $ref: "#/components/schemas/AgentKbItem" }
+        memory:
+          type: array
+          items:
+            type: object
+            required: [id, title, content, createdAt]
+            properties:
+              id: { type: integer }
+              title: { type: string }
+              content: { type: string }
+              createdAt: { type: string }
 
     AgentMessage:
       type: object

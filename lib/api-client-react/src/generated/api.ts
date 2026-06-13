@@ -20,9 +20,13 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AddAgentKb201,
   Agent,
+  AgentInstructionsInput,
+  AgentKbInput,
   AgentLog,
   AgentMessage,
+  AgentProfile,
   AgentTask,
   AgentTaskInput,
   AgentTaskUpdate,
@@ -69,6 +73,7 @@ import type {
   PendingCount,
   PipelineReport,
   QualificationResult,
+  SetAgentInstructions200,
   SetupContext,
   SetupSectionData,
   SetupSectionResponse,
@@ -915,6 +920,297 @@ export function useListAgentMessages<TData = Awaited<ReturnType<typeof listAgent
 
 
 
+
+export const getGetAgentProfileUrl = (agentId: string,) => {
+
+
+
+
+  return `/api/agents/${agentId}/profile`
+}
+
+/**
+ * @summary An agent's instructions, skills, knowledge, and private memory
+ */
+export const getAgentProfile = async (agentId: string, options?: RequestInit): Promise<AgentProfile> => {
+
+  return customFetch<AgentProfile>(getGetAgentProfileUrl(agentId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAgentProfileQueryKey = (agentId: string,) => {
+    return [
+    `/api/agents/${agentId}/profile`
+    ] as const;
+    }
+
+
+export const getGetAgentProfileQueryOptions = <TData = Awaited<ReturnType<typeof getAgentProfile>>, TError = ErrorType<unknown>>(agentId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAgentProfile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAgentProfileQueryKey(agentId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAgentProfile>>> = ({ signal }) => getAgentProfile(agentId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: agentId !== null && agentId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAgentProfile>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAgentProfileQueryResult = NonNullable<Awaited<ReturnType<typeof getAgentProfile>>>
+export type GetAgentProfileQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary An agent's instructions, skills, knowledge, and private memory
+ */
+
+export function useGetAgentProfile<TData = Awaited<ReturnType<typeof getAgentProfile>>, TError = ErrorType<unknown>>(
+ agentId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAgentProfile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAgentProfileQueryOptions(agentId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSetAgentInstructionsUrl = (agentId: string,) => {
+
+
+
+
+  return `/api/agents/${agentId}/instructions`
+}
+
+/**
+ * @summary Set an agent's standing instructions
+ */
+export const setAgentInstructions = async (agentId: string,
+    agentInstructionsInput: AgentInstructionsInput, options?: RequestInit): Promise<SetAgentInstructions200> => {
+
+  return customFetch<SetAgentInstructions200>(getSetAgentInstructionsUrl(agentId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(agentInstructionsInput)
+  }
+);}
+
+
+
+
+export const getSetAgentInstructionsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAgentInstructions>>, TError,{agentId: string;data: BodyType<AgentInstructionsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setAgentInstructions>>, TError,{agentId: string;data: BodyType<AgentInstructionsInput>}, TContext> => {
+
+const mutationKey = ['setAgentInstructions'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setAgentInstructions>>, {agentId: string;data: BodyType<AgentInstructionsInput>}> = (props) => {
+          const {agentId,data} = props ?? {};
+
+          return  setAgentInstructions(agentId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetAgentInstructionsMutationResult = NonNullable<Awaited<ReturnType<typeof setAgentInstructions>>>
+    export type SetAgentInstructionsMutationBody = BodyType<AgentInstructionsInput>
+    export type SetAgentInstructionsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Set an agent's standing instructions
+ */
+export const useSetAgentInstructions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAgentInstructions>>, TError,{agentId: string;data: BodyType<AgentInstructionsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setAgentInstructions>>,
+        TError,
+        {agentId: string;data: BodyType<AgentInstructionsInput>},
+        TContext
+      > => {
+      return useMutation(getSetAgentInstructionsMutationOptions(options));
+    }
+
+export const getAddAgentKbUrl = (agentId: string,) => {
+
+
+
+
+  return `/api/agents/${agentId}/kb`
+}
+
+/**
+ * @summary Add a skill or knowledge entry to an agent
+ */
+export const addAgentKb = async (agentId: string,
+    agentKbInput: AgentKbInput, options?: RequestInit): Promise<AddAgentKb201> => {
+
+  return customFetch<AddAgentKb201>(getAddAgentKbUrl(agentId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(agentKbInput)
+  }
+);}
+
+
+
+
+export const getAddAgentKbMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addAgentKb>>, TError,{agentId: string;data: BodyType<AgentKbInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addAgentKb>>, TError,{agentId: string;data: BodyType<AgentKbInput>}, TContext> => {
+
+const mutationKey = ['addAgentKb'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addAgentKb>>, {agentId: string;data: BodyType<AgentKbInput>}> = (props) => {
+          const {agentId,data} = props ?? {};
+
+          return  addAgentKb(agentId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddAgentKbMutationResult = NonNullable<Awaited<ReturnType<typeof addAgentKb>>>
+    export type AddAgentKbMutationBody = BodyType<AgentKbInput>
+    export type AddAgentKbMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Add a skill or knowledge entry to an agent
+ */
+export const useAddAgentKb = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addAgentKb>>, TError,{agentId: string;data: BodyType<AgentKbInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addAgentKb>>,
+        TError,
+        {agentId: string;data: BodyType<AgentKbInput>},
+        TContext
+      > => {
+      return useMutation(getAddAgentKbMutationOptions(options));
+    }
+
+export const getDeleteAgentKbUrl = (agentId: string,
+    kbId: number,) => {
+
+
+
+
+  return `/api/agents/${agentId}/kb/${kbId}`
+}
+
+/**
+ * @summary Delete a skill or knowledge entry
+ */
+export const deleteAgentKb = async (agentId: string,
+    kbId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteAgentKbUrl(agentId,kbId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteAgentKbMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAgentKb>>, TError,{agentId: string;kbId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAgentKb>>, TError,{agentId: string;kbId: number}, TContext> => {
+
+const mutationKey = ['deleteAgentKb'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAgentKb>>, {agentId: string;kbId: number}> = (props) => {
+          const {agentId,kbId} = props ?? {};
+
+          return  deleteAgentKb(agentId,kbId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAgentKbMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAgentKb>>>
+
+    export type DeleteAgentKbMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete a skill or knowledge entry
+ */
+export const useDeleteAgentKb = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAgentKb>>, TError,{agentId: string;kbId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAgentKb>>,
+        TError,
+        {agentId: string;kbId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteAgentKbMutationOptions(options));
+    }
 
 export const getAskAgentUrl = (agentId: string,) => {
 

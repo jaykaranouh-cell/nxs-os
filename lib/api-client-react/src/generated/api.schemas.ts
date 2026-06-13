@@ -423,6 +423,44 @@ export interface HomeDigest {
   counts: HomeDigestCounts;
 }
 
+export interface AgentInstructionsInput {
+  instructions: string;
+}
+
+export interface AgentKbItem {
+  id: number;
+  title: string;
+  content: string;
+}
+
+export type AgentKbInputKind = typeof AgentKbInputKind[keyof typeof AgentKbInputKind];
+
+
+export const AgentKbInputKind = {
+  skill: 'skill',
+  knowledge: 'knowledge',
+} as const;
+
+export interface AgentKbInput {
+  kind: AgentKbInputKind;
+  title: string;
+  content: string;
+}
+
+export type AgentProfileMemoryItem = {
+  id: number;
+  title: string;
+  content: string;
+  createdAt: string;
+};
+
+export interface AgentProfile {
+  instructions: string;
+  skills: AgentKbItem[];
+  knowledge: AgentKbItem[];
+  memory: AgentProfileMemoryItem[];
+}
+
 export interface AgentMessage {
   id: number;
   fromAgentId: string;
@@ -807,6 +845,14 @@ stage?: string;
 
 export type MarkHomeSeen200 = {
   lastSeen?: string;
+};
+
+export type SetAgentInstructions200 = {
+  ok?: boolean;
+};
+
+export type AddAgentKb201 = {
+  id?: number;
 };
 
 export type ListMemoryEntriesParams = {

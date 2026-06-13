@@ -23,6 +23,7 @@ import type { Anthropic } from "@workspace/integrations-anthropic-server";
 import { DEPARTMENT_AGENTS, getAgent } from "./agents";
 import { runDepartmentAgent, sendAgentMessage } from "./dispatch";
 import { setAgentName } from "./roster";
+import { setAgentInstructions, addAgentKb } from "./profile";
 import { notifyJay } from "../notify";
 import { BROWSER_TOOL_DEFINITIONS, runBrowserTool, isBrowserTool } from "./browser";
 import { loadContext } from "./context";
@@ -307,6 +308,64 @@ const notifyJayTool = {
     });
     await logAction("Notified Jay", input.title);
     return sent ? `Push sent: "${input.title}"` : "Push not configured (NXS_NTFY_TOPIC unset)";
+  },
+};
+
+const instructAgentSchema = z.object({
+  agentId: z.enum(["sales", "marketing", "research", "finance"]),
+  instructions: z.string().min(10),
+});
+
+const instructAgent = {
+  definition: {
+    name: "instruct_agent",
+    description:
+      "Set or replace a department agent's standing instructions (their charter beyond the base persona). Use to shape how a teammate works on an ongoing basis.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        agentId: { type: "string", enum: ["sales", "marketing", "research", "finance"] },
+        instructions: { type: "string", description: "The agent's standing instructions" },
+      },
+      required: ["agentId", "instructions"],
+    },
+  },
+  schema: instructAgentSchema,
+  async run(input: z.infer<typeof instructAgentSchema>): Promise<string> {
+    await setAgentInstructions(input.agentId, input.instructions);
+    await logAction("Instructed agent", `Updated ${input.agentId}'s standing instructions`);
+    return `Updated ${input.agentId}'s instructions`;
+  },
+};
+
+const teachAgentSchema = z.object({
+  agentId: z.enum(["sales", "marketing", "research", "finance"]),
+  kind: z.enum(["skill", "knowledge"]),
+  title: z.string().min(2),
+  content: z.string().min(10),
+});
+
+const teachAgent = {
+  definition: {
+    name: "teach_agent",
+    description:
+      "Add a playbook (skill) or reference document (knowledge) to a department agent's knowledge base, so they apply it on every future task. Use to build your team's capability over time.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        agentId: { type: "string", enum: ["sales", "marketing", "research", "finance"] },
+        kind: { type: "string", enum: ["skill", "knowledge"] },
+        title: { type: "string" },
+        content: { type: "string" },
+      },
+      required: ["agentId", "kind", "title", "content"],
+    },
+  },
+  schema: teachAgentSchema,
+  async run(input: z.infer<typeof teachAgentSchema>): Promise<string> {
+    await addAgentKb(input.agentId, input.kind, input.title, input.content, "maya");
+    await logAction("Taught agent", `Added ${input.kind} "${input.title}" to ${input.agentId}`);
+    return `Added ${input.kind} "${input.title}" to ${input.agentId}'s knowledge base`;
   },
 };
 
@@ -596,7 +655,7 @@ export const COMPUTER_TOOL_DEFINITIONS: Anthropic.Tool[] = COMPUTER_TOOLS.map((t
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 
-const BASE_TOOLS = [createMemoryEntry, updateLeadStage, createAgentTask, logIdea, updateOpportunity, createOpportunity, dispatchAgent, spawnAgent, messageTeam, nameAgent, notifyJayTool];
+const BASE_TOOLS = [createMemoryEntry, updateLeadStage, createAgentTask, logIdea, updateOpportunity, createOpportunity, dispatchAgent, spawnAgent, messageTeam, nameAgent, notifyJayTool, instructAgent, teachAgent];
 const TOOLS = [...BASE_TOOLS, ...COMPUTER_TOOLS];
 
 export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
