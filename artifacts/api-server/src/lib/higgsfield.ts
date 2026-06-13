@@ -60,6 +60,29 @@ export const IMAGE_MODELS: Array<{ id: string; label: string; tier: "fast" | "pr
   { id: "marketing_studio_image", label: "Marketing Studio", tier: "premium" },
 ];
 
+// Per-model max-quality params (only flags each model actually accepts).
+const IMAGE_MODEL_PARAMS: Record<string, string[]> = {
+  nano_banana_2: ["--resolution", "4k"],
+  gpt_image_2: ["--resolution", "4k", "--quality", "high"],
+  flux_2: ["--resolution", "2k"],
+  seedream_v4_5: ["--quality", "high"],
+  seedream_v5_lite: ["--quality", "high"],
+  recraft_v4_1: ["--resolution", "2k"],
+  grok_image: ["--mode", "quality"],
+  marketing_studio_image: ["--resolution", "4k"],
+  z_image: [],
+};
+
+/** Aspect ratio best suited to each platform (values supported by all models). */
+export function aspectForPlatform(platform?: string): string {
+  switch (platform) {
+    case "tiktok": return "9:16";
+    case "youtube": return "16:9";
+    case "instagram": return "1:1";
+    default: return "1:1"; // linkedin + fallback
+  }
+}
+
 /** Curated video models offered in the UI, by quality/cost tier. */
 export const VIDEO_MODELS: Array<{ id: string; label: string; tier: "fast" | "premium" }> = [
   { id: "seedance_2_0", label: "Seedance 2.0", tier: "fast" },
@@ -119,19 +142,25 @@ export async function generateVideo(
  * Generate an image from a prompt and return a locally-served path
  * (e.g. "/generated/abc.png"). Throws HiggsfieldNotReady if not logged in.
  */
-export async function generateImage(prompt: string, idHint = "img", model?: string): Promise<string> {
+export async function generateImage(
+  prompt: string,
+  opts: { idHint?: string; model?: string; aspect?: string } = {}
+): Promise<string> {
   if (!(await higgsfieldReady())) {
     throw new HiggsfieldNotReady(
       "Higgsfield isn't connected. Run `higgsfield auth login` in your terminal once, then try again."
     );
   }
-  const chosen = model && IMAGE_MODELS.some((m) => m.id === model) ? model : IMAGE_MODEL;
+  const idHint = opts.idHint ?? "img";
+  const chosen = opts.model && IMAGE_MODELS.some((m) => m.id === opts.model) ? opts.model : IMAGE_MODEL;
+  const qualityParams = IMAGE_MODEL_PARAMS[chosen] ?? [];
+  const aspectParams = opts.aspect ? ["--aspect_ratio", opts.aspect] : [];
 
   let stdout = "";
   try {
     const r = await exec(
       BIN,
-      ["generate", "create", chosen, "--prompt", prompt, "--wait", "--wait-timeout", "300s", "--no-color"],
+      ["generate", "create", chosen, "--prompt", prompt, ...aspectParams, ...qualityParams, "--wait", "--wait-timeout", "300s", "--no-color"],
       { timeout: 330_000, maxBuffer: 8 * 1024 * 1024 }
     );
     stdout = `${r.stdout}\n${r.stderr}`;

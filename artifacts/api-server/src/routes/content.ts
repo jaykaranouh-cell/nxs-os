@@ -6,16 +6,19 @@
 import { Router } from "express";
 import { db, contentDraftsTable, insertContentDraftSchema, brandsTable, insertBrandSchema } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
-import { generateImage, generateVideo, higgsfieldReady, HiggsfieldNotReady, VIDEO_MODELS, IMAGE_MODELS, GENERATED_DIR } from "../lib/higgsfield";
+import { generateImage, generateVideo, higgsfieldReady, HiggsfieldNotReady, VIDEO_MODELS, IMAGE_MODELS, GENERATED_DIR, aspectForPlatform } from "../lib/higgsfield";
 import path from "node:path";
 
 const router = Router();
 
-/** Build a clean visual prompt from a post when Jay doesn't supply one. */
-function imagePromptFor(content: string, override?: string): string {
+/** Build a strong visual prompt from a post when Jay doesn't supply one. */
+function imagePromptFor(content: string, platform?: string, override?: string): string {
   if (override && override.trim()) return override.trim();
-  const gist = content.replace(/\s+/g, " ").slice(0, 220);
-  return `Professional, modern LinkedIn marketing visual. Clean minimal tech aesthetic, deep blue and cyan palette, soft studio lighting, high detail, no text, no logos. Concept based on this post: ${gist}`;
+  const gist = content.replace(/\s+/g, " ").slice(0, 200);
+  const vibe = platform === "instagram" || platform === "tiktok"
+    ? "bold, scroll-stopping, vibrant"
+    : "clean, premium, editorial";
+  return `Ultra high quality, sharp focus, professional commercial photography, dramatic studio lighting, rich fine detail, ${vibe}, modern minimal tech aesthetic with a deep blue and cyan accent palette. One single strong visual concept for a marketing post. No text, no captions, no watermarks, no logos. Subject/theme: ${gist}`;
 }
 
 const serialize = (d: typeof contentDraftsTable.$inferSelect) => ({
@@ -126,10 +129,10 @@ router.post("/content/drafts/:id/image", async (req, res) => {
   const [draft] = await db.select().from(contentDraftsTable).where(eq(contentDraftsTable.id, id));
   if (!draft) { res.status(404).json({ error: "Not found" }); return; }
 
-  const prompt = imagePromptFor(draft.content, typeof req.body?.prompt === "string" ? req.body.prompt : undefined);
+  const prompt = imagePromptFor(draft.content, draft.platform, typeof req.body?.prompt === "string" ? req.body.prompt : undefined);
   const model = typeof req.body?.model === "string" ? req.body.model : undefined;
   try {
-    const imageUrl = await generateImage(prompt, `draft${id}`, model);
+    const imageUrl = await generateImage(prompt, { idHint: `draft${id}`, model, aspect: aspectForPlatform(draft.platform) });
     const [row] = await db
       .update(contentDraftsTable)
       .set({ imageUrl, imagePrompt: prompt })
