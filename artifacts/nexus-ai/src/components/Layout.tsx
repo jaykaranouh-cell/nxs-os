@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import {
   MessageSquare, LayoutDashboard, Brain, Network, Compass,
   Lightbulb, Bot, BarChart3, ArrowRight, Activity, Zap, Menu, X, Settings2,
-  Newspaper, Map, Linkedin,
+  Newspaper, Map, Clapperboard,
 } from "lucide-react";
 
 const NAV_SECTIONS = [
@@ -30,7 +30,7 @@ const NAV_SECTIONS = [
     items: [
       { href: "/agents", label: "Agent Layer", icon: Bot, hint: "flexible agents" },
       { href: "/leads", label: "Pipeline", icon: ArrowRight, hint: "leads & deals" },
-      { href: "/content", label: "Content Studio", icon: Linkedin, hint: "LinkedIn drafts" },
+      { href: "/content", label: "Content Studio", icon: Clapperboard, hint: "multi-platform content" },
       { href: "/kpi", label: "KPI Layer", icon: BarChart3, hint: "outcomes & metrics" },
     ],
   },
