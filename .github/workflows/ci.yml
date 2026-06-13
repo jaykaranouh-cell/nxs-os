@@ -20,6 +20,9 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      # pnpm 11 blocks dependency build scripts by default; esbuild needs its
+      # build. Approve non-interactively for this ephemeral CI run.
+      - run: pnpm config set dangerouslyAllowAllBuilds true
       - run: pnpm install --frozen-lockfile
       - run: pnpm run typecheck
       - run: pnpm test
