@@ -4,9 +4,18 @@
  * Pure SVG isometric geometry — no game engine, no cartoon elements.
  */
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "wouter";
+
+const City3D = lazy(() => import("@/components/city/City3D"));
+
+// Short, polished district names for the 3D city labels.
+const CITY3D_NAMES: Record<string, string> = {
+  sales: "Sales", marketing: "Marketing", intelligence: "Intelligence",
+  memory: "Memory Engine", finance: "Finance", operations: "Operations",
+  delivery: "Delivery", radar: "Opportunities",
+};
 import {
   useGetMemoryAgentStatus,
   useListMemoryEntries,
@@ -1189,6 +1198,10 @@ function BuildingInterior({
 export default function NXSCity() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<"night" | "day">("night");
+  const [view, setView] = useState<"3d" | "flat">(() =>
+    (localStorage.getItem("nxs-city-view") as "3d" | "flat") ?? "3d"
+  );
+  const setCityView = (v: "3d" | "flat") => { setView(v); localStorage.setItem("nxs-city-view", v); };
 
   const { data: memStatus } = useGetMemoryAgentStatus();
   const { data: oppsRaw }   = useListOpportunities({});
@@ -1259,6 +1272,14 @@ export default function NXSCity() {
     delivery:     { level: clamp01(0.15 + wonClients / 3), alert: false },
   };
 
+  const districts3D = BUILDINGS.filter((b) => b.id !== "hq").map((b) => ({
+    id: b.id,
+    name: CITY3D_NAMES[b.id] ?? b.name,
+    hue: b.accentHex,
+    status: b.status,
+    metric: liveMetrics[b.id] ?? b.metric,
+  }));
+
   const selected = BUILDINGS.find(b => b.id === selectedId) ?? null;
 
   return (
@@ -1283,9 +1304,33 @@ export default function NXSCity() {
             className="flex flex-col h-full overflow-y-auto"
           >
             <CityHero />
-            <div className="relative flex-1 rounded-2xl border border-white/5 overflow-hidden bg-[#06090f]" style={{ minHeight: 480 }}>
-              <div className="h-full overflow-auto">
-                <CityCanvas onSelect={setSelectedId} mode={mode} metrics={liveMetrics} activity={liveActivity} />
+            <div className="relative flex-1 rounded-2xl border border-white/5 overflow-hidden bg-[#05070d]" style={{ minHeight: 480 }}>
+              {view === "3d" ? (
+                <Suspense fallback={
+                  <div className="h-full w-full flex flex-col items-center justify-center gap-3 text-white/40">
+                    <Radio className="h-7 w-7 animate-pulse text-primary/70" />
+                    <span className="text-[10px] font-mono uppercase tracking-[0.2em]">Rendering NXS City…</span>
+                  </div>
+                }>
+                  <div className="h-full w-full">
+                    <City3D districts={districts3D} activity={liveActivity} onSelect={setSelectedId} />
+                  </div>
+                </Suspense>
+              ) : (
+                <div className="h-full overflow-auto">
+                  <CityCanvas onSelect={setSelectedId} mode={mode} metrics={liveMetrics} activity={liveActivity} />
+                </div>
+              )}
+
+              {/* 3D / flat view toggle */}
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex rounded-lg border border-white/10 bg-[#070d18]/80 backdrop-blur-md overflow-hidden pointer-events-auto">
+                {(["3d", "flat"] as const).map((v) => (
+                  <button key={v} onClick={() => setCityView(v)}
+                    className={`px-3 py-1 text-[8px] font-mono font-bold uppercase tracking-[0.18em] transition-colors ${
+                      view === v ? "bg-primary/20 text-primary" : "text-white/35 hover:text-white/70"}`}>
+                    {v === "3d" ? "3D City" : "Schematic"}
+                  </button>
+                ))}
               </div>
               {/* HUD overlays — desktop only, never block building clicks */}
               <div className="pointer-events-none absolute inset-0 hidden lg:block">
