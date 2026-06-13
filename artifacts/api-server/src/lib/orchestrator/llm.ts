@@ -16,6 +16,7 @@
 import { anthropic, CLAUDE_MODEL, messageText, type Anthropic } from "@workspace/integrations-anthropic-server";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { recordUsage } from "./telemetry";
+import { assertWithinBudget } from "./budget";
 import type { SystemBlock } from "./prompts";
 
 export type LlmRole = "router" | "agent" | "capture" | "brief" | "ideas" | "obsidian";
@@ -58,6 +59,7 @@ export interface CompleteOptions {
 
 /** One text-in, text-out completion routed by role. */
 export async function completeText(opts: CompleteOptions): Promise<string> {
+  await assertWithinBudget();
   const choice = choiceFor(opts.role);
 
   if (choice.provider === "openai") {

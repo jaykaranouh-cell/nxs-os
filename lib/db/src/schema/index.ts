@@ -9,3 +9,4 @@ export * from "./opportunities";
 export * from "./proposals";
 export * from "./usage";
 export * from "./agentKb";
+export * from "./reversible";

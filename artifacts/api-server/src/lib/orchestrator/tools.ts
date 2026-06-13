@@ -8,6 +8,7 @@
 import { z } from "zod/v4";
 import {
   db,
+  reversibleActionsTable,
   memoryEntriesTable,
   insertMemoryEntrySchema,
   leadsTable,
@@ -141,6 +142,12 @@ const updateLeadStage = {
       .where(eq(leadsTable.id, input.leadId))
       .returning();
     await logAction("Updated lead stage", `${lead.name} (${lead.company}) → ${input.stage}`);
+    if (existing.stage !== input.stage) {
+      await db.insert(reversibleActionsTable).values({
+        kind: "lead_stage", entityId: lead.id, entityLabel: `${lead.name} (${lead.company})`,
+        prevValue: existing.stage, newValue: input.stage,
+      });
+    }
     return `Lead "${lead.name}" (${lead.company}) moved to ${input.stage}`;
   },
 };
@@ -273,6 +280,12 @@ const updateOpportunity = {
       .where(eq(opportunitiesTable.id, input.opportunityId))
       .returning();
     await logAction("Updated opportunity", `${opp.title} → ${opp.status}/${opp.priority}`);
+    if (input.status && existing.status !== input.status) {
+      await db.insert(reversibleActionsTable).values({
+        kind: "opportunity_status", entityId: opp.id, entityLabel: opp.title,
+        prevValue: existing.status, newValue: input.status,
+      });
+    }
     return `Opportunity "${opp.title}" updated (${opp.status}, ${opp.priority})`;
   },
 };

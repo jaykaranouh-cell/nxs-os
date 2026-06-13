@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { llmUsageTable } from "@workspace/db";
 import { gte } from "drizzle-orm";
+import { rowCost } from "../lib/orchestrator/pricing";
 import { db } from "@workspace/db";
 import { leadsTable, agentTasksTable, ideasTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -106,19 +107,6 @@ router.get("/reports/finance", async (req, res) => {
 
 
 // GET /reports/usage — token usage + estimated cost, last 30 days.
-// Per-model list prices (USD per token); longest-prefix match, opus fallback.
-const MODEL_PRICES: Array<[string, { input: number; output: number; cacheRead: number; cacheWrite: number }]> = [
-  ["claude-opus", { input: 5 / 1e6, output: 25 / 1e6, cacheRead: 0.5 / 1e6, cacheWrite: 6.25 / 1e6 }],
-  ["claude-sonnet", { input: 3 / 1e6, output: 15 / 1e6, cacheRead: 0.3 / 1e6, cacheWrite: 3.75 / 1e6 }],
-  ["claude-haiku", { input: 1 / 1e6, output: 5 / 1e6, cacheRead: 0.1 / 1e6, cacheWrite: 1.25 / 1e6 }],
-  ["gpt-4o-mini", { input: 0.15 / 1e6, output: 0.6 / 1e6, cacheRead: 0.075 / 1e6, cacheWrite: 0 }],
-  ["gpt-4o", { input: 2.5 / 1e6, output: 10 / 1e6, cacheRead: 1.25 / 1e6, cacheWrite: 0 }],
-];
-function pricesFor(model: string) {
-  // gpt-4o-mini must win over gpt-4o: check longer prefixes first
-  const sorted = [...MODEL_PRICES].sort((a, b) => b[0].length - a[0].length);
-  return sorted.find(([prefix]) => model.startsWith(prefix))?.[1] ?? MODEL_PRICES[0][1];
-}
 
 router.get("/reports/usage", async (req, res) => {
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -131,12 +119,7 @@ router.get("/reports/usage", async (req, res) => {
     agg.inputTokens += r.inputTokens;
     agg.outputTokens += r.outputTokens;
     agg.cacheReadTokens += r.cacheReadTokens;
-    const price = pricesFor(r.model);
-    agg.cost +=
-      r.inputTokens * price.input +
-      r.outputTokens * price.output +
-      r.cacheReadTokens * price.cacheRead +
-      r.cacheWriteTokens * price.cacheWrite;
+    agg.cost += rowCost(r);
     byScope.set(r.scope, agg);
   }
 

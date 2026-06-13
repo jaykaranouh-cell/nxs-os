@@ -15,6 +15,7 @@ import morningBriefRouter from "./morningBrief";
 import voiceRouter from "./voice";
 import homeRouter from "./home";
 import agentProfileRouter from "./agentProfile";
+import actionsRouter from "./actions";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(morningBriefRouter);
 router.use(voiceRouter);
 router.use(homeRouter);
 router.use(agentProfileRouter);
+router.use(actionsRouter);
 
 export default router;

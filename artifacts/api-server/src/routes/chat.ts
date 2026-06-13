@@ -24,6 +24,7 @@ import {
   type ToolEvent,
 } from "../lib/orchestrator/tools";
 import { recordUsage } from "../lib/orchestrator/telemetry";
+import { assertWithinBudget, BudgetExceededError } from "../lib/orchestrator/budget";
 import { captureMemoryFromTurn } from "../lib/orchestrator/capture";
 import { loadConversationSummary, maybeCompactConversation } from "../lib/orchestrator/compaction";
 
@@ -83,6 +84,7 @@ export async function runSynthesis(opts: {
   ];
   const toolEvents: ToolEvent[] = [];
   let text = "";
+  await assertWithinBudget();
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const stream = anthropic.messages.stream({
@@ -206,9 +208,14 @@ router.post("/chat/messages", async (req, res) => {
       response = text || FALLBACK_RESPONSE;
       agentActions = buildActions(runs, toolEvents);
     } catch (err) {
-      req.log.error(err, "Chat completion error");
-      response = FALLBACK_RESPONSE;
-      agentActions = [];
+      if (err instanceof BudgetExceededError) {
+        response = `**Situation:** ${err.message}\n**Next Move:** Raise NXS_DAILY_BUDGET_USD or wait for the daily reset.`;
+        agentActions = [];
+      } else {
+        req.log.error(err, "Chat completion error");
+        response = FALLBACK_RESPONSE;
+        agentActions = [];
+      }
     }
   }
 
@@ -287,12 +294,13 @@ router.post("/chat/stream", async (req, res) => {
     sendEvent(res, { done: true, userMessageId: userMsg.id, messageId: orchMsg.id, agentActions: actions });
     res.end();
   } catch (err) {
-    req.log.error(err, "Chat stream error");
+    const msg = err instanceof BudgetExceededError ? err.message : FALLBACK_RESPONSE;
+    if (!(err instanceof BudgetExceededError)) req.log.error(err, "Chat stream error");
     await db
       .insert(chatMessagesTable)
-      .values({ role: "orchestrator", content: FALLBACK_RESPONSE, agentActions: JSON.stringify([]) })
+      .values({ role: "orchestrator", content: msg, agentActions: JSON.stringify([]) })
       .catch(() => {});
-    sendEvent(res, { content: FALLBACK_RESPONSE });
+    sendEvent(res, { content: msg });
     sendEvent(res, { done: true });
     res.end();
   }

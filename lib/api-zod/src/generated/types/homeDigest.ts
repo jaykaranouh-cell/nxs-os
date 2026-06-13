@@ -6,12 +6,14 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { HomeDigestAway } from './homeDigestAway';
+import type { HomeDigestBudget } from './homeDigestBudget';
 import type { HomeDigestCounts } from './homeDigestCounts';
 import type { HomeDigestNeedsYou } from './homeDigestNeedsYou';
 
 export interface HomeDigest {
   lastSeen: string;
   generatedAt: string;
+  budget?: HomeDigestBudget;
   away: HomeDigestAway;
   needsYou: HomeDigestNeedsYou;
   counts: HomeDigestCounts;

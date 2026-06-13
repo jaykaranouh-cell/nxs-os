@@ -73,12 +73,14 @@ import type {
   PendingCount,
   PipelineReport,
   QualificationResult,
+  ReversibleAction,
   SetAgentInstructions200,
   SetupContext,
   SetupSectionData,
   SetupSectionResponse,
   SystemContext,
-  SystemContextInput
+  SystemContextInput,
+  UndoAction200
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -696,6 +698,153 @@ export function useListAgents<TData = Awaited<ReturnType<typeof listAgents>>, TE
 
 
 
+
+export const getListReversibleActionsUrl = () => {
+
+
+
+
+  return `/api/actions/reversible`
+}
+
+/**
+ * @summary Recent undoable agent actions
+ */
+export const listReversibleActions = async ( options?: RequestInit): Promise<ReversibleAction[]> => {
+
+  return customFetch<ReversibleAction[]>(getListReversibleActionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListReversibleActionsQueryKey = () => {
+    return [
+    `/api/actions/reversible`
+    ] as const;
+    }
+
+
+export const getListReversibleActionsQueryOptions = <TData = Awaited<ReturnType<typeof listReversibleActions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReversibleActions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListReversibleActionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listReversibleActions>>> = ({ signal }) => listReversibleActions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listReversibleActions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListReversibleActionsQueryResult = NonNullable<Awaited<ReturnType<typeof listReversibleActions>>>
+export type ListReversibleActionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Recent undoable agent actions
+ */
+
+export function useListReversibleActions<TData = Awaited<ReturnType<typeof listReversibleActions>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReversibleActions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListReversibleActionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getUndoActionUrl = (id: number,) => {
+
+
+
+
+  return `/api/actions/${id}/undo`
+}
+
+/**
+ * @summary Revert a recorded agent action
+ */
+export const undoAction = async (id: number, options?: RequestInit): Promise<UndoAction200> => {
+
+  return customFetch<UndoAction200>(getUndoActionUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getUndoActionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof undoAction>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof undoAction>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['undoAction'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof undoAction>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  undoAction(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UndoActionMutationResult = NonNullable<Awaited<ReturnType<typeof undoAction>>>
+
+    export type UndoActionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Revert a recorded agent action
+ */
+export const useUndoAction = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof undoAction>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof undoAction>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getUndoActionMutationOptions(options));
+    }
 
 export const getGetHomeDigestUrl = () => {
 

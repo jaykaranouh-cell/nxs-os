@@ -11,11 +11,14 @@ import {
   useMarkHomeSeen,
   useApproveMemoryProposal,
   useRejectMemoryProposal,
+  useListReversibleActions,
+  useUndoAction,
   getGetHomeDigestQueryKey,
+  getListReversibleActionsQueryKey,
 } from "@workspace/api-client-react";
 import {
   Sparkles, Sun, Inbox, Check, X, MessageSquare, Lightbulb,
-  AlertTriangle, Target, ArrowRight, CheckCircle2,
+  AlertTriangle, Target, ArrowRight, CheckCircle2, Undo2, DollarSign,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ExpandableText } from "@/components/ExpandableText";
@@ -50,6 +53,8 @@ export function SinceYouWereAway() {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getGetHomeDigestQueryKey() });
   const approve = useApproveMemoryProposal({ mutation: { onSuccess: invalidate } });
   const reject = useRejectMemoryProposal({ mutation: { onSuccess: invalidate } });
+  const { data: reversible } = useListReversibleActions();
+  const undo = useUndoAction({ mutation: { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListReversibleActionsQueryKey() }) } });
 
   // Mark seen shortly after viewing, so the next visit shows only newer activity.
   useEffect(() => {
@@ -83,10 +88,22 @@ export function SinceYouWereAway() {
         <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center">
           <Sun className="h-4 w-4 text-primary" />
         </div>
-        <div>
+        <div className="flex-1">
           <h2 className="text-base font-bold text-white/90">Since you were away</h2>
           <p className="text-[10px] text-white/40">Last checked {timeAgo(lastSeen)}</p>
         </div>
+        {digest.budget?.todayUsd != null && (() => {
+          const today = digest.budget.todayUsd ?? 0;
+          const cap = digest.budget.capUsd ?? null;
+          return (
+            <div className="text-right">
+              <div className="text-[9px] font-mono uppercase tracking-widest text-white/30 flex items-center gap-1 justify-end"><DollarSign className="h-2.5 w-2.5" /> today</div>
+              <div className={`text-sm font-bold ${cap && today >= cap * 0.8 ? "text-yellow-400" : "text-white/80"}`}>
+                ${today.toFixed(2)}{cap ? <span className="text-white/30 text-[10px] font-normal"> / ${cap}</span> : null}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -168,6 +185,18 @@ export function SinceYouWereAway() {
                 <div key={idea.id} className="flex items-center gap-2 rounded-lg border border-white/8 bg-white/[0.02] px-3 py-1.5 mb-1">
                   <span className="text-[8px] font-mono uppercase text-white/30">{idea.agentName}</span>
                   <span className="text-[11px] text-white/70 truncate">{idea.title}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {reversible && reversible.length > 0 && (
+            <div>
+              <SectionHeader icon={<Undo2 className="h-3.5 w-3.5 text-primary/60" />} title="Recent agent actions" count={reversible.length} />
+              {reversible.slice(0, 5).map((a) => (
+                <div key={a.id} className="flex items-center gap-2 rounded-lg border border-white/8 bg-white/[0.02] px-3 py-1.5 mb-1">
+                  <span className="text-[11px] text-white/65 truncate flex-1">{a.entityLabel}: {a.prevValue} → {a.newValue}</span>
+                  <button onClick={() => undo.mutate({ id: a.id })} disabled={undo.isPending} title="Undo" className="text-white/30 hover:text-primary flex items-center gap-0.5 text-[9px] font-mono"><Undo2 className="h-3 w-3" /> undo</button>
                 </div>
               ))}
             </div>

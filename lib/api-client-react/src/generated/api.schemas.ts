@@ -362,6 +362,22 @@ export interface LlmUsageReport {
   byScope: LlmUsageScopeRow[];
 }
 
+export interface ReversibleAction {
+  id: number;
+  kind: string;
+  entityId: number;
+  entityLabel: string;
+  prevValue: string;
+  newValue: string;
+  actor?: string;
+  createdAt: string;
+}
+
+export type HomeDigestBudget = {
+  todayUsd?: number;
+  capUsd?: number | null;
+};
+
 export type HomeDigestAwayGrowthSessionsItem = {
   id: number;
   snippet: string;
@@ -418,6 +434,7 @@ export type HomeDigestCounts = {[key: string]: number};
 export interface HomeDigest {
   lastSeen: string;
   generatedAt: string;
+  budget?: HomeDigestBudget;
   away: HomeDigestAway;
   needsYou: HomeDigestNeedsYou;
   counts: HomeDigestCounts;
@@ -841,6 +858,11 @@ export interface MorningBrief {
 export type ListLeadsParams = {
 status?: string;
 stage?: string;
+};
+
+export type UndoAction200 = {
+  ok?: boolean;
+  reverted?: string;
 };
 
 export type MarkHomeSeen200 = {

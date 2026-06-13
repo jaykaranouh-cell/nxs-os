@@ -2,6 +2,7 @@ import { db, agentTasksTable, agentLogsTable, agentMessagesTable } from "@worksp
 import { desc, eq, inArray } from "drizzle-orm";
 import { anthropic, messageText, type Anthropic } from "@workspace/integrations-anthropic-server";
 import { recordUsage } from "./telemetry";
+import { assertWithinBudget } from "./budget";
 import { choiceFor } from "./llm";
 import { logger } from "../logger";
 import { completeText } from "./llm";
@@ -195,6 +196,7 @@ export async function runDepartmentAgent(
     // Comms tools need the Anthropic tool loop; consulted agents (depth>0)
     // and OpenAI-routed agents run single-shot to bound cost and recursion.
     const useTools = depth === 0 && choiceFor("agent").provider === "anthropic";
+    if (useTools) await assertWithinBudget();
     let findings: string;
 
     if (!useTools) {

@@ -222,11 +222,44 @@ export const ListAgentsResponse = zod.array(ListAgentsResponseItem)
 
 
 /**
+ * @summary Recent undoable agent actions
+ */
+export const ListReversibleActionsResponseItem = zod.object({
+  "id": zod.number(),
+  "kind": zod.string(),
+  "entityId": zod.number(),
+  "entityLabel": zod.string(),
+  "prevValue": zod.string(),
+  "newValue": zod.string(),
+  "actor": zod.string().optional(),
+  "createdAt": zod.string()
+})
+export const ListReversibleActionsResponse = zod.array(ListReversibleActionsResponseItem)
+
+
+/**
+ * @summary Revert a recorded agent action
+ */
+export const UndoActionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UndoActionResponse = zod.object({
+  "ok": zod.boolean().optional(),
+  "reverted": zod.string().optional()
+})
+
+
+/**
  * @summary Activity since last visit plus outstanding items
  */
 export const GetHomeDigestResponse = zod.object({
   "lastSeen": zod.string(),
   "generatedAt": zod.string(),
+  "budget": zod.object({
+  "todayUsd": zod.number().optional(),
+  "capUsd": zod.number().nullish()
+}).optional(),
   "away": zod.object({
   "growthSessions": zod.array(zod.object({
   "id": zod.number(),

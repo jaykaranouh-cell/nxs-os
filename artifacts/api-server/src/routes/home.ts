@@ -16,6 +16,7 @@ import {
   systemContextTable,
 } from "@workspace/db";
 import { and, desc, eq, gt, inArray, like } from "drizzle-orm";
+import { todaySpendUsd, dailyCap } from "../lib/orchestrator/budget";
 
 const router = Router();
 const SEEN_KEY = "home-last-seen";
@@ -30,6 +31,7 @@ async function getLastSeen(): Promise<Date> {
 // GET /home/digest
 router.get("/home/digest", async (req, res) => {
   const lastSeen = await getLastSeen();
+  const [spendToday, cap] = await Promise.all([todaySpendUsd().catch(() => 0), Promise.resolve(dailyCap())]);
 
   const [growth, agentMsgs, newOpps, proposals, pendingIdeas, riskTasks] = await Promise.all([
     // Autonomous strategy sessions since last visit
@@ -69,6 +71,7 @@ router.get("/home/digest", async (req, res) => {
   res.json({
     lastSeen: lastSeen.toISOString(),
     generatedAt: new Date().toISOString(),
+    budget: { todayUsd: Math.round(spendToday * 100) / 100, capUsd: cap },
     away: {
       growthSessions: growth.map((m) => ({
         id: m.id,
