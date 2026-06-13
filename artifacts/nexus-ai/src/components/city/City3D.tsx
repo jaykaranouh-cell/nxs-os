@@ -10,11 +10,63 @@
  * Everything reacts to real business data passed in via `activity`.
  */
 
-import { useMemo, useRef, useState, Suspense } from "react";
+import { useMemo, useRef, useState, useEffect, Suspense, Component, type ReactNode } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, MeshReflectorMaterial, Html } from "@react-three/drei";
+import { OrbitControls, MeshReflectorMaterial, Html, useGLTF } from "@react-three/drei";
 import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
 import * as THREE from "three";
+
+// ── Imported city model ───────────────────────────────────────────────────────
+// Drop a glTF binary here and the scene swaps the procedural buildings for your
+// hand-built / kit city, keeping the live data overlay (conduits, packets,
+// labels) on top. Get kits from KitBash3D, Sketchfab, Quaternius, Kenney.
+//   File path:  artifacts/nexus-ai/public/models/city.glb   →  served at /models/city.glb
+const CITY_MODEL_URL = "/models/city.glb";
+// Footprint the model is auto-scaled to (max horizontal extent, world units).
+const CITY_MODEL_FIT = 30;
+// Tune if your kit sits off-centre or at the wrong height after import.
+const CITY_MODEL_Y_OFFSET = 0;
+
+/** Detect whether a city model has been dropped in (HEAD request, cached). */
+function useCityModel(): boolean | null {
+  const [present, setPresent] = useState<boolean | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch(CITY_MODEL_URL, { method: "HEAD" })
+      .then((r) => { if (alive) setPresent(r.ok && (r.headers.get("content-type") ?? "").indexOf("text/html") === -1); })
+      .catch(() => { if (alive) setPresent(false); });
+    return () => { alive = false; };
+  }, []);
+  return present;
+}
+
+/** Loads, centres, scales and lightly tonemaps an imported city model. */
+function CityModel() {
+  const { scene } = useGLTF(CITY_MODEL_URL);
+  const prepared = useMemo(() => {
+    const root = scene.clone(true);
+    const box = new THREE.Box3().setFromObject(root);
+    const size = new THREE.Vector3(); box.getSize(size);
+    const center = new THREE.Vector3(); box.getCenter(center);
+    const maxXZ = Math.max(size.x, size.z) || 1;
+    const scale = CITY_MODEL_FIT / maxXZ;
+    root.position.set(-center.x * scale, -box.min.y * scale + CITY_MODEL_Y_OFFSET, -center.z * scale);
+    root.scale.setScalar(scale);
+    root.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; }
+    });
+    return root;
+  }, [scene]);
+  return <primitive object={prepared} />;
+}
+
+/** Falls back to `fallback` if the model fails to parse. */
+class ModelBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() { return this.state.failed ? this.props.fallback : this.props.children; }
+}
 
 export interface District3D {
   id: string;
@@ -105,9 +157,9 @@ function Building({
 // ── District cluster (clickable) ──────────────────────────────────────────────
 
 function DistrictCluster({
-  d, activity, onSelect,
+  d, activity, onSelect, showBuildings = true,
 }: {
-  d: District3D; activity: Activity3D; onSelect: (id: string) => void;
+  d: District3D; activity: Activity3D; onSelect: (id: string) => void; showBuildings?: boolean;
 }) {
   const [hover, setHover] = useState(false);
   const ang = (ANGLES[d.id] ?? 0) * Math.PI / 180;
@@ -124,23 +176,24 @@ function DistrictCluster({
       onPointerOver={(e) => { e.stopPropagation(); setHover(true); document.body.style.cursor = "pointer"; }}
       onPointerOut={() => { setHover(false); document.body.style.cursor = "auto"; }}
     >
-      {/* main tower */}
-      <Building position={[0, h / 2, 0]} size={[2.2, h, 2.2]} hue={col} intensity={emis} repeatY={Math.round(h)} />
-      {/* two satellites */}
-      <Building position={[2.0, (h*0.55)/2, 1.0]} size={[1.5, h*0.55, 1.5]} hue={col} intensity={emis*0.85} repeatY={2} />
-      <Building position={[-1.6, (h*0.4)/2, -1.4]} size={[1.3, h*0.4, 1.7]} hue={col} intensity={emis*0.8} repeatY={2} />
-      {/* ground glow pad */}
+      {/* buildings — hidden when an imported model is in use */}
+      {showBuildings && <>
+        <Building position={[0, h / 2, 0]} size={[2.2, h, 2.2]} hue={col} intensity={emis} repeatY={Math.round(h)} />
+        <Building position={[2.0, (h*0.55)/2, 1.0]} size={[1.5, h*0.55, 1.5]} hue={col} intensity={emis*0.85} repeatY={2} />
+        <Building position={[-1.6, (h*0.4)/2, -1.4]} size={[1.3, h*0.4, 1.7]} hue={col} intensity={emis*0.8} repeatY={2} />
+        {/* rooftop beacon */}
+        <mesh position={[0, h + 0.25, 0]}>
+          <sphereGeometry args={[0.12, 12, 12]} />
+          <meshBasicMaterial color={col} toneMapped={false} />
+        </mesh>
+      </>}
+      {/* ground glow pad — always shown so the district reads on the map */}
       <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.02, 0]}>
         <circleGeometry args={[3.4, 40]} />
         <meshBasicMaterial color={col} transparent opacity={hover ? 0.16 : 0.07} />
       </mesh>
-      {/* rooftop beacon */}
-      <mesh position={[0, h + 0.25, 0]}>
-        <sphereGeometry args={[0.12, 12, 12]} />
-        <meshBasicMaterial color={col} toneMapped={false} />
-      </mesh>
       {/* floating label */}
-      <Html position={[0, h + 1.1, 0]} center distanceFactor={20} zIndexRange={[20, 0]} occlude={false}>
+      <Html position={[0, (showBuildings ? h : 1.5) + 1.1, 0]} center distanceFactor={20} zIndexRange={[20, 0]} occlude={false}>
         <div
           onClick={(e) => { e.stopPropagation(); onSelect(d.id); }}
           style={{ cursor: "pointer", transform: hover ? "scale(1.06)" : "scale(1)", transition: "transform .15s" }}
@@ -165,7 +218,7 @@ function DistrictCluster({
 
 // ── Central Orchestrator tower + plaza ────────────────────────────────────────
 
-function CentralTower({ activity, onSelect }: { activity: Activity3D; onSelect: (id: string) => void }) {
+function CentralTower({ activity, onSelect, showBuildings = true }: { activity: Activity3D; onSelect: (id: string) => void; showBuildings?: boolean }) {
   const auraRef = useRef<THREE.Mesh>(null);
   const [hover, setHover] = useState(false);
   useFrame((state) => {
@@ -200,22 +253,24 @@ function CentralTower({ activity, onSelect }: { activity: Activity3D; onSelect: 
           </mesh>
         );
       })}
-      {/* tower body (stacked, tapering) */}
-      <Building position={[0, 3.5, 0]} size={[2.4, 7, 2.4]} hue="#5b9bff" intensity={hover ? 2.6 : 2.1} repeatY={7} />
-      <Building position={[0, 7.8, 0]} size={[1.7, 2.2, 1.7]} hue="#7db5ff" intensity={2.2} repeatY={2} />
-      {/* glowing crown + antenna */}
-      <mesh position={[0, 9.1, 0]}>
-        <boxGeometry args={[1.1, 0.5, 1.1]} />
-        <meshBasicMaterial color="#9cc7ff" toneMapped={false} />
-      </mesh>
-      <mesh position={[0, 10.0, 0]}>
-        <cylinderGeometry args={[0.03, 0.03, 1.4, 6]} />
-        <meshBasicMaterial color="#cfe2ff" toneMapped={false} />
-      </mesh>
-      <mesh position={[0, 10.8, 0]}>
-        <sphereGeometry args={[0.13, 12, 12]} />
-        <meshBasicMaterial color="#dcebff" toneMapped={false} />
-      </mesh>
+      {/* tower body (stacked, tapering) — hidden when an imported model is in use */}
+      {showBuildings && <>
+        <Building position={[0, 3.5, 0]} size={[2.4, 7, 2.4]} hue="#5b9bff" intensity={hover ? 2.6 : 2.1} repeatY={7} />
+        <Building position={[0, 7.8, 0]} size={[1.7, 2.2, 1.7]} hue="#7db5ff" intensity={2.2} repeatY={2} />
+        {/* glowing crown + antenna */}
+        <mesh position={[0, 9.1, 0]}>
+          <boxGeometry args={[1.1, 0.5, 1.1]} />
+          <meshBasicMaterial color="#9cc7ff" toneMapped={false} />
+        </mesh>
+        <mesh position={[0, 10.0, 0]}>
+          <cylinderGeometry args={[0.03, 0.03, 1.4, 6]} />
+          <meshBasicMaterial color="#cfe2ff" toneMapped={false} />
+        </mesh>
+        <mesh position={[0, 10.8, 0]}>
+          <sphereGeometry args={[0.13, 12, 12]} />
+          <meshBasicMaterial color="#dcebff" toneMapped={false} />
+        </mesh>
+      </>}
       {/* breathing aura */}
       <mesh ref={auraRef} position={[0, 3, 0]}>
         <sphereGeometry args={[5.5, 24, 24]} />
@@ -223,7 +278,7 @@ function CentralTower({ activity, onSelect }: { activity: Activity3D; onSelect: 
       </mesh>
       {/* point light from the tower */}
       <pointLight position={[0, 6, 0]} color={col} intensity={28} distance={26} decay={2} />
-      <Html position={[0, 11.6, 0]} center distanceFactor={20} zIndexRange={[20, 0]}>
+      <Html position={[0, showBuildings ? 11.6 : 6.5, 0]} center distanceFactor={20} zIndexRange={[20, 0]}>
         <div
           onClick={(e) => { e.stopPropagation(); onSelect("hq"); }}
           className="select-none whitespace-nowrap text-center pointer-events-auto" style={{ cursor: "pointer" }}
@@ -289,6 +344,29 @@ function Scene({ districts, activity, onSelect }: {
   onSelect: (id: string) => void;
 }) {
   const hqAct = activity.hq ?? { level: 1, alert: false };
+  const hasModel = useCityModel();
+
+  // Procedural buildings (used when no model is dropped in, and as the
+  // fallback while/if the model can't load).
+  const proceduralBuildings = (
+    <>
+      <CentralTower activity={hqAct} onSelect={onSelect} />
+      {districts.map((d) => (
+        <DistrictCluster key={d.id} d={d} activity={activity[d.id] ?? { level: 0.2, alert: false }} onSelect={onSelect} />
+      ))}
+    </>
+  );
+
+  // Light overlay (no boxes) for when an imported model supplies the geometry.
+  const modelOverlay = (
+    <>
+      <CentralTower activity={hqAct} onSelect={onSelect} showBuildings={false} />
+      {districts.map((d) => (
+        <DistrictCluster key={d.id} d={d} activity={activity[d.id] ?? { level: 0.2, alert: false }} onSelect={onSelect} showBuildings={false} />
+      ))}
+    </>
+  );
+
   return (
     <>
       <color attach="background" args={["#05070d"]} />
@@ -315,10 +393,17 @@ function Scene({ districts, activity, onSelect }: {
       {/* faint ground grid */}
       <gridHelper args={[120, 120, "#16243f", "#0c1626"]} position={[0, 0.01, 0]} />
 
-      <CentralTower activity={hqAct} onSelect={onSelect} />
-      {districts.map((d) => (
-        <DistrictCluster key={d.id} d={d} activity={activity[d.id] ?? { level: 0.2, alert: false }} onSelect={onSelect} />
-      ))}
+      {hasModel ? (
+        <ModelBoundary fallback={proceduralBuildings}>
+          <Suspense fallback={proceduralBuildings}>
+            <CityModel />
+            {modelOverlay}
+          </Suspense>
+        </ModelBoundary>
+      ) : (
+        proceduralBuildings
+      )}
+
       {districts.map((d) => (
         <Conduit key={d.id} d={d} activity={activity[d.id] ?? { level: 0.2, alert: false }} />
       ))}
