@@ -286,9 +286,14 @@ export default function Orchestrator() {
   }, []);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    // Radix ScrollArea scrolls in its inner viewport, not the root element.
+    const viewport = scrollRef.current?.querySelector<HTMLDivElement>(
+      "[data-radix-scroll-area-viewport]"
+    );
+    if (!viewport) return;
+    requestAnimationFrame(() => {
+      viewport.scrollTop = viewport.scrollHeight;
+    });
   }, [messages, streamingContent, isStreaming]);
 
   useEffect(() => {
