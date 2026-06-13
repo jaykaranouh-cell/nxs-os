@@ -47,6 +47,19 @@ function extractImageUrl(stdout: string): string | null {
   return extractUrl(stdout, "png|jpe?g|webp");
 }
 
+/** Curated image models offered in the UI, by quality/cost tier. */
+export const IMAGE_MODELS: Array<{ id: string; label: string; tier: "fast" | "premium" }> = [
+  { id: "nano_banana_2", label: "Nano Banana Pro", tier: "fast" },
+  { id: "z_image", label: "Z Image", tier: "fast" },
+  { id: "seedream_v5_lite", label: "Seedream V5 Lite", tier: "fast" },
+  { id: "grok_image", label: "Grok Image", tier: "fast" },
+  { id: "gpt_image_2", label: "GPT Image 2", tier: "premium" },
+  { id: "flux_2", label: "FLUX.2", tier: "premium" },
+  { id: "seedream_v4_5", label: "Seedream 4.5", tier: "premium" },
+  { id: "recraft_v4_1", label: "Recraft V4.1", tier: "premium" },
+  { id: "marketing_studio_image", label: "Marketing Studio", tier: "premium" },
+];
+
 /** Curated video models offered in the UI, by quality/cost tier. */
 export const VIDEO_MODELS: Array<{ id: string; label: string; tier: "fast" | "premium" }> = [
   { id: "seedance_2_0", label: "Seedance 2.0", tier: "fast" },
@@ -106,18 +119,19 @@ export async function generateVideo(
  * Generate an image from a prompt and return a locally-served path
  * (e.g. "/generated/abc.png"). Throws HiggsfieldNotReady if not logged in.
  */
-export async function generateImage(prompt: string, idHint = "img"): Promise<string> {
+export async function generateImage(prompt: string, idHint = "img", model?: string): Promise<string> {
   if (!(await higgsfieldReady())) {
     throw new HiggsfieldNotReady(
       "Higgsfield isn't connected. Run `higgsfield auth login` in your terminal once, then try again."
     );
   }
+  const chosen = model && IMAGE_MODELS.some((m) => m.id === model) ? model : IMAGE_MODEL;
 
   let stdout = "";
   try {
     const r = await exec(
       BIN,
-      ["generate", "create", IMAGE_MODEL, "--prompt", prompt, "--wait", "--wait-timeout", "300s", "--no-color"],
+      ["generate", "create", chosen, "--prompt", prompt, "--wait", "--wait-timeout", "300s", "--no-color"],
       { timeout: 330_000, maxBuffer: 8 * 1024 * 1024 }
     );
     stdout = `${r.stdout}\n${r.stderr}`;

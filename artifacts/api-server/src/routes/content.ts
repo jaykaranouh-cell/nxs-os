@@ -6,7 +6,7 @@
 import { Router } from "express";
 import { db, contentDraftsTable, insertContentDraftSchema, brandsTable, insertBrandSchema } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
-import { generateImage, generateVideo, higgsfieldReady, HiggsfieldNotReady, VIDEO_MODELS, GENERATED_DIR } from "../lib/higgsfield";
+import { generateImage, generateVideo, higgsfieldReady, HiggsfieldNotReady, VIDEO_MODELS, IMAGE_MODELS, GENERATED_DIR } from "../lib/higgsfield";
 import path from "node:path";
 
 const router = Router();
@@ -127,8 +127,9 @@ router.post("/content/drafts/:id/image", async (req, res) => {
   if (!draft) { res.status(404).json({ error: "Not found" }); return; }
 
   const prompt = imagePromptFor(draft.content, typeof req.body?.prompt === "string" ? req.body.prompt : undefined);
+  const model = typeof req.body?.model === "string" ? req.body.model : undefined;
   try {
-    const imageUrl = await generateImage(prompt, `draft${id}`);
+    const imageUrl = await generateImage(prompt, `draft${id}`, model);
     const [row] = await db
       .update(contentDraftsTable)
       .set({ imageUrl, imagePrompt: prompt })
@@ -142,6 +143,11 @@ router.post("/content/drafts/:id/image", async (req, res) => {
     }
     res.status(502).json({ error: (err as Error).message || "Image generation failed" });
   }
+});
+
+// GET /content/image-models — curated models for the picker
+router.get("/content/image-models", (_req, res) => {
+  res.json(IMAGE_MODELS);
 });
 
 // GET /content/video-models — curated models for the picker

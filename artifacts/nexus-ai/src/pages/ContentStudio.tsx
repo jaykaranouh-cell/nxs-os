@@ -46,6 +46,7 @@ const api = {
   drafts: (): Promise<Draft[]> => fetch("/api/content/drafts", { headers: authHeaders() }).then(j),
   brands: (): Promise<Brand[]> => fetch("/api/content/brands", { headers: authHeaders() }).then(j),
   videoModels: (): Promise<VideoModel[]> => fetch("/api/content/video-models", { headers: authHeaders() }).then(j).catch(() => []),
+  imageModels: (): Promise<VideoModel[]> => fetch("/api/content/image-models", { headers: authHeaders() }).then(j).catch(() => []),
   higgs: (): Promise<{ ready: boolean }> => fetch("/api/content/higgsfield/status", { headers: authHeaders() }).then(j).catch(() => ({ ready: false })),
   scheduler: (): Promise<{ scheduler: string | null }> => fetch("/api/content/publish/status", { headers: authHeaders() }).then(j).catch(() => ({ scheduler: null })),
   createDraft: (b: { content: string; platform: string; brandId: number | null }): Promise<Draft> =>
@@ -55,14 +56,14 @@ const api = {
   delBrand: (id: number) => fetch(`/api/content/brands/${id}`, { method: "DELETE", headers: authHeaders() }).then(j),
   markPosted: (id: number) => fetch(`/api/content/drafts/${id}/posted`, { method: "POST", headers: authHeaders() }).then(j),
   remove: (id: number) => fetch(`/api/content/drafts/${id}`, { method: "DELETE", headers: authHeaders() }).then(j),
-  genImage: (id: number): Promise<Draft> => fetch(`/api/content/drafts/${id}/image`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: "{}" }).then(j),
+  genImage: (id: number, model: string): Promise<Draft> => fetch(`/api/content/drafts/${id}/image`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ model }) }).then(j),
   genVideo: (id: number, model: string, mode: "image" | "text"): Promise<Draft> =>
     fetch(`/api/content/drafts/${id}/video`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ model, mode }) }).then(j),
 };
 
 // ─── Draft card ───────────────────────────────────────────────────────────────
 
-function DraftCard({ draft, brand, models, onChanged }: { draft: Draft; brand?: Brand; models: VideoModel[]; onChanged: () => void }) {
+function DraftCard({ draft, brand, models, imgModels, onChanged }: { draft: Draft; brand?: Brand; models: VideoModel[]; imgModels: VideoModel[]; onChanged: () => void }) {
   const p = platform(draft.platform);
   const PIcon = p.Icon;
   const posted = draft.status === "posted";
@@ -71,6 +72,7 @@ function DraftCard({ draft, brand, models, onChanged }: { draft: Draft; brand?: 
   const [vidLoading, setVidLoading] = useState<"image" | "text" | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [vidModel, setVidModel] = useState("seedance_2_0");
+  const [imgModel, setImgModel] = useState("nano_banana_2");
   const busy = genLoading || vidLoading !== null;
 
   const friendlyErr = (e: unknown) => {
@@ -83,7 +85,7 @@ function DraftCard({ draft, brand, models, onChanged }: { draft: Draft; brand?: 
     try { await navigator.clipboard.writeText(draft.content); setCopied(true); setTimeout(() => setCopied(false), 2500); } catch {}
     window.open(p.prefillsText ? p.openUrl + encodeURIComponent(draft.content) : p.openUrl, "_blank", "noopener");
   };
-  const genImage = async () => { setErr(null); setGenLoading(true); try { await api.genImage(draft.id); onChanged(); } catch (e) { setErr(friendlyErr(e)); } finally { setGenLoading(false); } };
+  const genImage = async () => { setErr(null); setGenLoading(true); try { await api.genImage(draft.id, imgModel); onChanged(); } catch (e) { setErr(friendlyErr(e)); } finally { setGenLoading(false); } };
   const makeVideo = async (mode: "image" | "text") => { setErr(null); setVidLoading(mode); try { await api.genVideo(draft.id, vidModel, mode); onChanged(); } catch (e) { setErr(friendlyErr(e)); } finally { setVidLoading(null); } };
 
   return (
@@ -160,6 +162,11 @@ function DraftCard({ draft, brand, models, onChanged }: { draft: Draft; brand?: 
         {/* media generation row */}
         <div className="flex flex-wrap items-center gap-2 mt-2">
           <span className="text-[9px] font-mono uppercase tracking-wider text-white/35 flex items-center gap-1"><Sparkles className="h-3 w-3" /> Media</span>
+          <select value={imgModel} onChange={(e) => setImgModel(e.target.value)} disabled={busy}
+            className="h-7 rounded-md bg-background border border-white/15 text-[11px] px-1.5 text-foreground/80">
+            <optgroup label="Fast & affordable">{imgModels.filter((m) => m.tier === "fast").map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</optgroup>
+            <optgroup label="Premium">{imgModels.filter((m) => m.tier === "premium").map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</optgroup>
+          </select>
           <Button size="sm" variant="outline" disabled={busy} onClick={genImage} className="h-7 gap-1.5 border-primary/25 text-primary/80 hover:bg-primary/10 text-[11px]">
             {genLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : draft.imageUrl ? <Wand2 className="h-3 w-3" /> : <ImageIcon className="h-3 w-3" />}
             {draft.imageUrl ? "Regenerate image" : "Generate image"}
@@ -188,6 +195,7 @@ export default function ContentStudio() {
   const { data: drafts } = useQuery({ queryKey: ["content-drafts"], queryFn: api.drafts, refetchInterval: 20000 });
   const { data: brands } = useQuery({ queryKey: ["content-brands"], queryFn: api.brands });
   const { data: vmodels } = useQuery({ queryKey: ["video-models"], queryFn: api.videoModels, staleTime: Infinity });
+  const { data: imodels } = useQuery({ queryKey: ["image-models"], queryFn: api.imageModels, staleTime: Infinity });
   const { data: higgs } = useQuery({ queryKey: ["higgs-status"], queryFn: api.higgs, refetchInterval: 60000 });
   const { data: sched } = useQuery({ queryKey: ["sched-status"], queryFn: api.scheduler, refetchInterval: 60000 });
   const refresh = () => qc.invalidateQueries({ queryKey: ["content-drafts"] });
@@ -320,7 +328,7 @@ export default function ContentStudio() {
         {queue.length === 0 ? (
           <p className="text-xs text-muted-foreground/40 italic px-1">Nothing here yet. Hit “New post”, or ask Maya: “write me a TikTok hook for [client] about …”.</p>
         ) : (
-          <div className="space-y-3">{queue.map((d) => <DraftCard key={d.id} draft={d} brand={d.brandId ? brandById[d.brandId] : undefined} models={models} onChanged={refresh} />)}</div>
+          <div className="space-y-3">{queue.map((d) => <DraftCard key={d.id} draft={d} brand={d.brandId ? brandById[d.brandId] : undefined} models={models} imgModels={imodels ?? []} onChanged={refresh} />)}</div>
         )}
 
         {/* Posted */}
@@ -331,7 +339,7 @@ export default function ContentStudio() {
               <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Posted ({posted.length})</span>
               <div className="flex-1 h-px bg-white/8" />
             </div>
-            <div className="space-y-3 opacity-70">{posted.slice(0, 12).map((d) => <DraftCard key={d.id} draft={d} brand={d.brandId ? brandById[d.brandId] : undefined} models={models} onChanged={refresh} />)}</div>
+            <div className="space-y-3 opacity-70">{posted.slice(0, 12).map((d) => <DraftCard key={d.id} draft={d} brand={d.brandId ? brandById[d.brandId] : undefined} models={models} imgModels={imodels ?? []} onChanged={refresh} />)}</div>
           </>
         )}
       </div>
