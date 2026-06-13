@@ -11,9 +11,9 @@ import path from "node:path";
 
 const router = Router();
 
-/** Build a strong visual prompt from a post when Jay doesn't supply one. */
+/** Build a strong visual prompt from a post, or use Jay's own art direction. */
 function imagePromptFor(content: string, platform?: string, override?: string): string {
-  if (override && override.trim()) return override.trim();
+  if (override && override.trim()) return `${override.trim()}. Ultra high quality, sharp focus, rich fine detail, professional.`;
   const gist = content.replace(/\s+/g, " ").slice(0, 200);
   const vibe = platform === "instagram" || platform === "tiktok"
     ? "bold, scroll-stopping, vibrant"
@@ -174,10 +174,13 @@ router.post("/content/drafts/:id/video", async (req, res) => {
     startImagePath = path.join(GENERATED_DIR, path.basename(draft.imageUrl));
   }
 
+  const override = typeof req.body?.prompt === "string" && req.body.prompt.trim() ? req.body.prompt.trim() : "";
   const gist = draft.content.replace(/\s+/g, " ").slice(0, 200);
-  const prompt = mode === "image"
-    ? `Subtle cinematic motion, slow camera push-in, gentle parallax, professional and brand-safe. Scene context: ${gist}`
-    : `Short professional LinkedIn marketing video, modern minimal tech aesthetic, deep blue and cyan palette, cinematic lighting, no on-screen text. Concept: ${gist}`;
+  const prompt = override
+    ? `${override}. Cinematic, ultra high quality, sharp focus, smooth motion.`
+    : mode === "image"
+      ? `Subtle cinematic motion, slow camera push-in, gentle parallax, professional and brand-safe. Scene context: ${gist}`
+      : `Short professional marketing video, modern minimal tech aesthetic, deep blue and cyan palette, cinematic lighting, no on-screen text. Concept: ${gist}`;
 
   try {
     const videoUrl = await generateVideo(prompt, { model, startImagePath, aspect: videoAspectForPlatform(draft.platform) }, `draft${id}`);

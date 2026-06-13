@@ -56,9 +56,9 @@ const api = {
   delBrand: (id: number) => fetch(`/api/content/brands/${id}`, { method: "DELETE", headers: authHeaders() }).then(j),
   markPosted: (id: number) => fetch(`/api/content/drafts/${id}/posted`, { method: "POST", headers: authHeaders() }).then(j),
   remove: (id: number) => fetch(`/api/content/drafts/${id}`, { method: "DELETE", headers: authHeaders() }).then(j),
-  genImage: (id: number, model: string): Promise<Draft> => fetch(`/api/content/drafts/${id}/image`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ model }) }).then(j),
-  genVideo: (id: number, model: string, mode: "image" | "text"): Promise<Draft> =>
-    fetch(`/api/content/drafts/${id}/video`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ model, mode }) }).then(j),
+  genImage: (id: number, model: string, prompt?: string): Promise<Draft> => fetch(`/api/content/drafts/${id}/image`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ model, prompt }) }).then(j),
+  genVideo: (id: number, model: string, mode: "image" | "text", prompt?: string): Promise<Draft> =>
+    fetch(`/api/content/drafts/${id}/video`, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ model, mode, prompt }) }).then(j),
 };
 
 // ─── Draft card ───────────────────────────────────────────────────────────────
@@ -73,7 +73,9 @@ function DraftCard({ draft, brand, models, imgModels, onChanged }: { draft: Draf
   const [err, setErr] = useState<string | null>(null);
   const [vidModel, setVidModel] = useState("veo3_1");
   const [imgModel, setImgModel] = useState("gpt_image_2");
+  const [artPrompt, setArtPrompt] = useState("");
   const busy = genLoading || vidLoading !== null;
+  const direction = () => (artPrompt.trim() ? artPrompt.trim() : undefined);
 
   const friendlyErr = (e: unknown) => {
     const x = e as Error & { code?: string };
@@ -85,8 +87,8 @@ function DraftCard({ draft, brand, models, imgModels, onChanged }: { draft: Draf
     try { await navigator.clipboard.writeText(draft.content); setCopied(true); setTimeout(() => setCopied(false), 2500); } catch {}
     window.open(p.prefillsText ? p.openUrl + encodeURIComponent(draft.content) : p.openUrl, "_blank", "noopener");
   };
-  const genImage = async () => { setErr(null); setGenLoading(true); try { await api.genImage(draft.id, imgModel); onChanged(); } catch (e) { setErr(friendlyErr(e)); } finally { setGenLoading(false); } };
-  const makeVideo = async (mode: "image" | "text") => { setErr(null); setVidLoading(mode); try { await api.genVideo(draft.id, vidModel, mode); onChanged(); } catch (e) { setErr(friendlyErr(e)); } finally { setVidLoading(null); } };
+  const genImage = async () => { setErr(null); setGenLoading(true); try { await api.genImage(draft.id, imgModel, direction()); onChanged(); } catch (e) { setErr(friendlyErr(e)); } finally { setGenLoading(false); } };
+  const makeVideo = async (mode: "image" | "text") => { setErr(null); setVidLoading(mode); try { await api.genVideo(draft.id, vidModel, mode, direction()); onChanged(); } catch (e) { setErr(friendlyErr(e)); } finally { setVidLoading(null); } };
 
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
@@ -160,6 +162,11 @@ function DraftCard({ draft, brand, models, imgModels, onChanged }: { draft: Draf
         </div>
 
         {/* media generation row */}
+        {/* Art direction — overrides the auto prompt for image & video */}
+        <Textarea value={artPrompt} onChange={(e) => setArtPrompt(e.target.value)} rows={2} disabled={busy}
+          placeholder="Art direction (optional) — describe exactly what the image/video should show, e.g. 'confident tradie on a job site at golden hour, shot on 35mm, shallow depth of field'"
+          className="mt-3 text-[11px] resize-none bg-background/60" />
+
         <div className="flex flex-wrap items-center gap-2 mt-2">
           <span className="text-[9px] font-mono uppercase tracking-wider text-white/35 flex items-center gap-1"><Sparkles className="h-3 w-3" /> Media</span>
           <select value={imgModel} onChange={(e) => setImgModel(e.target.value)} disabled={busy}
