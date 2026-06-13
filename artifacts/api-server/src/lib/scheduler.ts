@@ -13,6 +13,7 @@ import { DEPARTMENT_AGENTS } from "./orchestrator/agents";
 import { loadContext } from "./orchestrator/context";
 import { buildAgentBriefing } from "./orchestrator/prompts";
 import { runObsidianSync } from "./obsidian";
+import { runGrowthSession } from "./orchestrator/autonomy";
 import { logger } from "./logger";
 
 const hasLlmKey = () => Boolean(process.env.ANTHROPIC_API_KEY);
@@ -121,8 +122,10 @@ export function startScheduler(): void {
   cron.schedule("0 7 * * *", safely("morning-brief", morningBriefJob));
   cron.schedule("30 7 * * *", safely("risk-watchdog", riskWatchdogJob));
   cron.schedule("0 8 * * 1", safely("weekly-ideas", weeklyIdeasJob));
+  // 17:00 daily: Maya's autonomous growth strategy session
+  cron.schedule("0 17 * * *", safely("growth-session", async () => { await runGrowthSession(); }));
   // Obsidian bridge: ingest inbox + mirror memory every 10 minutes, and once at boot
   cron.schedule("*/10 * * * *", safely("obsidian-sync", runObsidianSync));
   void safely("obsidian-sync", runObsidianSync)();
-  logger.info("scheduler: jobs registered (brief 07:00, watchdog 07:30, ideas Mon 08:00, obsidian */10m)");
+  logger.info("scheduler: jobs registered (brief 07:00, watchdog 07:30, ideas Mon 08:00, growth 17:00, obsidian */10m)");
 }

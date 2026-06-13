@@ -330,6 +330,50 @@ const messageTeam = {
 };
 
 
+const createOpportunitySchema = z.object({
+  title: z.string().min(3),
+  description: z.string().min(10),
+  category: z.string().default("niche"),
+  priority: z.enum(PRIORITIES).default("medium"),
+  estimatedValue: z.string().optional(),
+});
+
+const createOpportunity = {
+  definition: {
+    name: "create_opportunity",
+    description:
+      "Add a new opportunity to the Opportunity Engine. Use when you identify a concrete, specific growth opportunity that isn't already tracked.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        title: { type: "string" },
+        description: { type: "string", description: "What it is, why it's worth pursuing, first step" },
+        category: { type: "string", description: "e.g. revenue, niche, partnership, competitive" },
+        priority: { type: "string", enum: [...PRIORITIES] },
+        estimatedValue: { type: "string", description: "Optional, e.g. '$9,600 ARR'" },
+      },
+      required: ["title", "description"],
+    },
+  },
+  schema: createOpportunitySchema,
+  async run(input: z.infer<typeof createOpportunitySchema>): Promise<string> {
+    const [opp] = await db
+      .insert(opportunitiesTable)
+      .values({
+        title: input.title,
+        description: input.description,
+        category: input.category,
+        priority: input.priority,
+        estimatedValue: input.estimatedValue ?? null,
+        source: "maya",
+        status: "new",
+      })
+      .returning();
+    await logAction("Created opportunity", `${opp.title} (${opp.priority})`);
+    return `Opportunity created: "${opp.title}" (#${opp.id}, ${opp.priority})`;
+  },
+};
+
 const dispatchAgentSchema = z.object({
   agentId: z.enum(["sales", "marketing", "research", "finance"]),
   task: z.string().min(10),
@@ -518,7 +562,7 @@ export const COMPUTER_TOOL_DEFINITIONS: Anthropic.Tool[] = COMPUTER_TOOLS.map((t
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 
-const BASE_TOOLS = [createMemoryEntry, updateLeadStage, createAgentTask, logIdea, updateOpportunity, dispatchAgent, spawnAgent, messageTeam, nameAgent];
+const BASE_TOOLS = [createMemoryEntry, updateLeadStage, createAgentTask, logIdea, updateOpportunity, createOpportunity, dispatchAgent, spawnAgent, messageTeam, nameAgent];
 const TOOLS = [...BASE_TOOLS, ...COMPUTER_TOOLS];
 
 export const TOOL_DEFINITIONS: Anthropic.Tool[] = BASE_TOOLS.map((t) => t.definition);

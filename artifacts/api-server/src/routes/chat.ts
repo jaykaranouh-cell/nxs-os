@@ -65,11 +65,12 @@ async function setupTurn(content: string, userMsgId: number): Promise<TurnSetup>
  * Synthesis with a tool-use loop. Streams text via onText, reports executed
  * actions via onAction, and returns the final text plus all tool events.
  */
-async function runSynthesis(opts: {
+export async function runSynthesis(opts: {
   system: ReturnType<typeof buildSystemBlocks>;
   history: ChatHistory;
   content: string;
   tools: typeof TOOL_DEFINITIONS;
+  scope?: string;
   onText?: (delta: string) => void;
   onAction?: (event: ToolEvent & { error?: boolean }) => void;
 }): Promise<{ text: string; toolEvents: ToolEvent[] }> {
@@ -98,7 +99,7 @@ async function runSynthesis(opts: {
     }
 
     const final = await stream.finalMessage();
-    recordUsage("synthesis", CLAUDE_MODEL, final.usage);
+    recordUsage(opts.scope ?? "synthesis", CLAUDE_MODEL, final.usage);
 
     if (final.stop_reason !== "tool_use") break;
 
@@ -289,6 +290,18 @@ router.post("/chat/stream", async (req, res) => {
     sendEvent(res, { content: FALLBACK_RESPONSE });
     sendEvent(res, { done: true });
     res.end();
+  }
+});
+
+// POST /chat/growth-session — manually trigger Maya's autonomous strategy session
+router.post("/chat/growth-session", async (req, res) => {
+  try {
+    const { runGrowthSession } = await import("../lib/orchestrator/autonomy");
+    const briefing = await runGrowthSession(true);
+    res.json({ ran: briefing != null, briefing });
+  } catch (err) {
+    req.log.error(err, "growth session failed");
+    res.status(500).json({ error: "Growth session failed" });
   }
 });
 
