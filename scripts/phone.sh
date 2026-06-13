@@ -6,5 +6,5 @@
 # Note: quick-tunnel URLs change on every run. For a permanent setup,
 # install Tailscale on the Mac + phone instead and use http://<mac-name>:22706.
 set -e
-echo "Tunnelling http://localhost:22706 ..."
-exec cloudflared tunnel --url http://localhost:22706
+echo "Tunnelling http://localhost:8080 ..."
+exec cloudflared tunnel --url http://localhost:8080

@@ -2,6 +2,17 @@
 
 A web-based AI business orchestration dashboard for Jay — a central command center where he interacts with a CEO Orchestrator Agent that coordinates four department agents: Marketing, Sales, Research, and Finance. Developed locally with Claude Code.
 
+## Deployment (production)
+
+NXS OS runs as macOS launchd services — no dev servers or Claude session needed:
+
+- **App**: `com.nxs.os` runs `scripts/start-prod.sh` (waits for Postgres, then the built API on port 8080, which also serves the built frontend from `artifacts/nexus-ai/dist/public`). RunAtLoad + KeepAlive: starts at login, restarts on crash. Logs: `~/Library/Logs/nxs-os.log`
+- **Backups**: `com.nxs.backup` runs `scripts/backup.sh` daily at 03:30 → gzipped pg_dumps in `~/NXS-Backups` (last 14 kept)
+- **Deploy a change**: `pnpm --filter @workspace/nexus-ai run build && pnpm --filter @workspace/api-server run build && launchctl kickstart -k gui/$(id -u)/com.nxs.os`
+- **Production URL**: http://localhost:8080 (phone: `scripts/phone.sh` tunnels 8080)
+- The repo lives at `~/nxs-os` — NOT ~/Downloads or ~/Desktop/Documents; macOS TCC blocks launchd services from protected folders. Caveat: the Obsidian vault on ~/Desktop IS protected, so the service's Obsidian sync needs node granted Full Disk Access (System Settings → Privacy & Security) or it logs EPERM warnings
+- Dev servers use port **8081** (api) + 22706 (vite, proxying to 8081 via API_PROXY_TARGET) so they never collide with production
+
 ## Run & Operate
 
 - `docker start nxs-postgres` — local Postgres 16 (container exists; auto-restarts with Docker)

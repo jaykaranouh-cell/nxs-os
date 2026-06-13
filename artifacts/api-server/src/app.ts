@@ -1,4 +1,6 @@
 import express, { type Express } from "express";
+import path from "node:path";
+import fs from "node:fs";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import pinoHttp from "pino-http";
@@ -38,5 +40,18 @@ const voiceLimiter = rateLimit({ windowMs: 60_000, limit: 30, standardHeaders: t
 app.use("/api/voice", voiceLimiter);
 
 app.use("/api", authGuard, router);
+
+// Production: serve the built frontend so the whole OS lives on one port.
+// In dev (no dist present) this is a no-op and Vite serves the frontend.
+const frontendDist =
+  process.env.NXS_FRONTEND_DIST ?? path.resolve(process.cwd(), "../nexus-ai/dist/public");
+if (fs.existsSync(path.join(frontendDist, "index.html"))) {
+  app.use(express.static(frontendDist));
+  app.use((req, res, next) => {
+    if (req.method !== "GET" || req.path.startsWith("/api")) return next();
+    res.sendFile(path.join(frontendDist, "index.html"));
+  });
+  logger.info({ frontendDist }, "serving built frontend");
+}
 
 export default app;
