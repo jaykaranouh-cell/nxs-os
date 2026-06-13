@@ -3,7 +3,7 @@ import {
   useListChatMessages, getListChatMessagesQueryKey,
   useGetMemoryBriefing, useGetMemoryAgentStatus,
   useGetSystemContext, useListOpportunities, useListAgents,
-  useListMemoryEntries,
+  useListMemoryEntries, useListAgentMessages, getListAgentMessagesQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +18,7 @@ import {
   Bot, Send, User, BrainCircuit, Loader2, Activity, Zap, Bell, Lock,
   Shield, AlertTriangle, Brain, Compass, Lightbulb, Target, Network,
   ChevronRight, ArrowRight, Database, BookOpen, CheckSquare, Plus,
-  Volume2, VolumeX, Mic, Square
+  Volume2, VolumeX, Mic, Square, MessageSquare
 } from "lucide-react";
 import { ContextIntakeModal } from "@/components/ContextIntakeModal";
 import { authHeaders } from "@/lib/auth";
@@ -305,6 +305,7 @@ export default function Orchestrator() {
   const qParam = new URLSearchParams(search).get("q");
   const { data: agentStatus } = useGetMemoryAgentStatus();
   const { data: realAgents } = useListAgents();
+  const { data: teamMessages } = useListAgentMessages({ query: { queryKey: getListAgentMessagesQueryKey(), refetchInterval: 15000 } });
   const { data: contextData } = useGetSystemContext();
   const { data: opps } = useListOpportunities({});
   const { data: decisions } = useListMemoryEntries({ category: "decisions" });
@@ -883,6 +884,40 @@ export default function Orchestrator() {
                 </span>
               </div>
             ))}
+          </CardContent>
+        </Card>
+
+        {/* Team Channel — what the agents are telling each other */}
+        <Card className="border-border/40 bg-card/50">
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-xs font-bold flex items-center gap-2 text-muted-foreground">
+              <MessageSquare className="h-3.5 w-3.5 text-primary/70" /> Team Channel
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-3 pb-3 space-y-2">
+            {teamMessages && teamMessages.length > 0 ? (
+              teamMessages.slice(0, 5).map((m) => (
+                <div key={m.id} className="rounded-lg border border-primary/10 bg-primary/[0.03] px-2.5 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-semibold text-foreground/80 truncate">
+                      {m.fromAgentName}
+                      <span className="text-muted-foreground/50 font-normal"> → {m.toAgentId === "all" ? "everyone" : m.toAgentId === "orchestrator" ? "Maya" : m.toAgentId === "jay" ? "Jay" : m.toAgentId}</span>
+                    </span>
+                    <span className="text-[8px] text-muted-foreground/40 flex-shrink-0">
+                      {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground/70 leading-relaxed mt-0.5 line-clamp-3 whitespace-pre-line">{m.content}</p>
+                </div>
+              ))
+            ) : (
+              <p className="text-[10px] text-muted-foreground/40 italic px-1">No team messages yet. Agents leave notes for each other here as they coordinate.</p>
+            )}
+            <Link href="/agents">
+              <button className="text-[9px] text-primary/60 hover:text-primary flex items-center gap-1 mt-1">
+                Open Team Channel <ChevronRight className="h-2.5 w-2.5" />
+              </button>
+            </Link>
           </CardContent>
         </Card>
 
