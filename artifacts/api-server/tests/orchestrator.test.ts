@@ -139,7 +139,8 @@ describe("dispatch", () => {
       { agent: DEPARTMENT_AGENTS[0], task: "check pipeline", findings: "x".repeat(300) },
     ]);
     expect(actions).toHaveLength(2);
-    expect(actions[0].result!.length).toBeLessThanOrEqual(180);
+    // Full findings are preserved now; the UI truncates and expands on click.
+    expect(actions[0].result).toBe("x".repeat(300));
     expect(actions[1].agentName).toBe("Maya");
   });
 });
