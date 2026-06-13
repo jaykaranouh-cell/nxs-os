@@ -362,6 +362,67 @@ export interface LlmUsageReport {
   byScope: LlmUsageScopeRow[];
 }
 
+export type HomeDigestAwayGrowthSessionsItem = {
+  id: number;
+  snippet: string;
+  createdAt: string;
+};
+
+export type HomeDigestAwayAgentMessagesItem = {
+  fromAgentName: string;
+  toAgentId: string;
+  content: string;
+  createdAt: string;
+};
+
+export type HomeDigestAwayNewOpportunitiesItem = {
+  id: number;
+  title: string;
+  priority: string;
+};
+
+export type HomeDigestAway = {
+  growthSessions: HomeDigestAwayGrowthSessionsItem[];
+  agentMessages: HomeDigestAwayAgentMessagesItem[];
+  newOpportunities: HomeDigestAwayNewOpportunitiesItem[];
+};
+
+export type HomeDigestNeedsYouProposalsItem = {
+  id: number;
+  title: string;
+  category: string;
+  priority: string;
+};
+
+export type HomeDigestNeedsYouIdeasItem = {
+  id: number;
+  title: string;
+  agentName: string;
+  impact: string;
+};
+
+export type HomeDigestNeedsYouRiskTasksItem = {
+  id: number;
+  title: string;
+  priority: string;
+};
+
+export type HomeDigestNeedsYou = {
+  proposals: HomeDigestNeedsYouProposalsItem[];
+  ideas: HomeDigestNeedsYouIdeasItem[];
+  riskTasks: HomeDigestNeedsYouRiskTasksItem[];
+};
+
+export type HomeDigestCounts = {[key: string]: number};
+
+export interface HomeDigest {
+  lastSeen: string;
+  generatedAt: string;
+  away: HomeDigestAway;
+  needsYou: HomeDigestNeedsYou;
+  counts: HomeDigestCounts;
+}
+
 export interface AgentMessage {
   id: number;
   fromAgentId: string;
@@ -742,6 +803,10 @@ export interface MorningBrief {
 export type ListLeadsParams = {
 status?: string;
 stage?: string;
+};
+
+export type MarkHomeSeen200 = {
+  lastSeen?: string;
 };
 
 export type ListMemoryEntriesParams = {

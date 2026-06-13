@@ -222,6 +222,61 @@ export const ListAgentsResponse = zod.array(ListAgentsResponseItem)
 
 
 /**
+ * @summary Activity since last visit plus outstanding items
+ */
+export const GetHomeDigestResponse = zod.object({
+  "lastSeen": zod.string(),
+  "generatedAt": zod.string(),
+  "away": zod.object({
+  "growthSessions": zod.array(zod.object({
+  "id": zod.number(),
+  "snippet": zod.string(),
+  "createdAt": zod.string()
+})),
+  "agentMessages": zod.array(zod.object({
+  "fromAgentName": zod.string(),
+  "toAgentId": zod.string(),
+  "content": zod.string(),
+  "createdAt": zod.string()
+})),
+  "newOpportunities": zod.array(zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "priority": zod.string()
+}))
+}),
+  "needsYou": zod.object({
+  "proposals": zod.array(zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "category": zod.string(),
+  "priority": zod.string()
+})),
+  "ideas": zod.array(zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "agentName": zod.string(),
+  "impact": zod.string()
+})),
+  "riskTasks": zod.array(zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "priority": zod.string()
+}))
+}),
+  "counts": zod.record(zod.string(), zod.number())
+})
+
+
+/**
+ * @summary Mark the home digest as seen up to now
+ */
+export const MarkHomeSeenResponse = zod.object({
+  "lastSeen": zod.string().optional()
+})
+
+
+/**
  * @summary Inter-agent team mailbox, newest first
  */
 export const ListAgentMessagesResponseItem = zod.object({

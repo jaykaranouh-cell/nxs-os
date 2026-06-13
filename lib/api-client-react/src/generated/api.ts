@@ -37,6 +37,7 @@ import type {
   DecisionInput,
   FinanceReport,
   HealthStatus,
+  HomeDigest,
   Idea,
   IdeaInput,
   IdeaUpdate,
@@ -52,6 +53,7 @@ import type {
   ListMemoryProposalsParams,
   ListOpportunitiesParams,
   LlmUsageReport,
+  MarkHomeSeen200,
   MemoryAgentStatus,
   MemoryBriefing,
   MemoryConnection,
@@ -689,6 +691,153 @@ export function useListAgents<TData = Awaited<ReturnType<typeof listAgents>>, TE
 
 
 
+
+export const getGetHomeDigestUrl = () => {
+
+
+
+
+  return `/api/home/digest`
+}
+
+/**
+ * @summary Activity since last visit plus outstanding items
+ */
+export const getHomeDigest = async ( options?: RequestInit): Promise<HomeDigest> => {
+
+  return customFetch<HomeDigest>(getGetHomeDigestUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetHomeDigestQueryKey = () => {
+    return [
+    `/api/home/digest`
+    ] as const;
+    }
+
+
+export const getGetHomeDigestQueryOptions = <TData = Awaited<ReturnType<typeof getHomeDigest>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHomeDigest>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetHomeDigestQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHomeDigest>>> = ({ signal }) => getHomeDigest({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getHomeDigest>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetHomeDigestQueryResult = NonNullable<Awaited<ReturnType<typeof getHomeDigest>>>
+export type GetHomeDigestQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Activity since last visit plus outstanding items
+ */
+
+export function useGetHomeDigest<TData = Awaited<ReturnType<typeof getHomeDigest>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHomeDigest>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetHomeDigestQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getMarkHomeSeenUrl = () => {
+
+
+
+
+  return `/api/home/seen`
+}
+
+/**
+ * @summary Mark the home digest as seen up to now
+ */
+export const markHomeSeen = async ( options?: RequestInit): Promise<MarkHomeSeen200> => {
+
+  return customFetch<MarkHomeSeen200>(getMarkHomeSeenUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getMarkHomeSeenMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markHomeSeen>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markHomeSeen>>, TError,void, TContext> => {
+
+const mutationKey = ['markHomeSeen'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markHomeSeen>>, void> = () => {
+
+
+          return  markHomeSeen(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkHomeSeenMutationResult = NonNullable<Awaited<ReturnType<typeof markHomeSeen>>>
+
+    export type MarkHomeSeenMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Mark the home digest as seen up to now
+ */
+export const useMarkHomeSeen = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markHomeSeen>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markHomeSeen>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getMarkHomeSeenMutationOptions(options));
+    }
 
 export const getListAgentMessagesUrl = () => {
 

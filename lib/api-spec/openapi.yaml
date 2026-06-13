@@ -184,6 +184,35 @@ paths:
                 items:
                   $ref: "#/components/schemas/Agent"
 
+  /home/digest:
+    get:
+      operationId: getHomeDigest
+      tags: [home]
+      summary: Activity since last visit plus outstanding items
+      responses:
+        "200":
+          description: Home digest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeDigest"
+
+  /home/seen:
+    post:
+      operationId: markHomeSeen
+      tags: [home]
+      summary: Mark the home digest as seen up to now
+      responses:
+        "200":
+          description: Updated last-seen
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lastSeen:
+                    type: string
+
   /agents/messages:
     get:
       operationId: listAgentMessages
@@ -1596,6 +1625,84 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/LlmUsageScopeRow"
+
+    HomeDigest:
+      type: object
+      required: [lastSeen, generatedAt, away, needsYou, counts]
+      properties:
+        lastSeen:
+          type: string
+        generatedAt:
+          type: string
+        away:
+          type: object
+          required: [growthSessions, agentMessages, newOpportunities]
+          properties:
+            growthSessions:
+              type: array
+              items:
+                type: object
+                required: [id, snippet, createdAt]
+                properties:
+                  id: { type: integer }
+                  snippet: { type: string }
+                  createdAt: { type: string }
+            agentMessages:
+              type: array
+              items:
+                type: object
+                required: [fromAgentName, toAgentId, content, createdAt]
+                properties:
+                  fromAgentName: { type: string }
+                  toAgentId: { type: string }
+                  content: { type: string }
+                  createdAt: { type: string }
+            newOpportunities:
+              type: array
+              items:
+                type: object
+                required: [id, title, priority]
+                properties:
+                  id: { type: integer }
+                  title: { type: string }
+                  priority: { type: string }
+        needsYou:
+          type: object
+          required: [proposals, ideas, riskTasks]
+          properties:
+            proposals:
+              type: array
+              items:
+                type: object
+                required: [id, title, category, priority]
+                properties:
+                  id: { type: integer }
+                  title: { type: string }
+                  category: { type: string }
+                  priority: { type: string }
+            ideas:
+              type: array
+              items:
+                type: object
+                required: [id, title, agentName, impact]
+                properties:
+                  id: { type: integer }
+                  title: { type: string }
+                  agentName: { type: string }
+                  impact: { type: string }
+            riskTasks:
+              type: array
+              items:
+                type: object
+                required: [id, title, priority]
+                properties:
+                  id: { type: integer }
+                  title: { type: string }
+                  priority: { type: string }
+        counts:
+          type: object
+          additionalProperties:
+            type: integer
 
     AgentMessage:
       type: object

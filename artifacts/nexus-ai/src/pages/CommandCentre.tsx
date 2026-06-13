@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SinceYouWereAway } from "@/components/SinceYouWereAway";
 import { ContextIntakeModal } from "@/components/ContextIntakeModal";
 import {
   Zap, Bell, Lock, Clock, AlertTriangle, Lightbulb, CheckCircle2,
@@ -291,6 +292,7 @@ export default function CommandCentre() {
 
   return (
     <div className="space-y-6">
+      <SinceYouWereAway />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
