@@ -102,8 +102,14 @@ const CONTEXT_KEYS = [
 const MEMORY_LIMIT = 400;
 const OPPS_LIMIT = 150;
 
-export async function loadContext(): Promise<OrchestratorContext> {
-  const [allMemory, allOpps, ctxRows, teamRows] = await Promise.all([
+export async function loadContext(query?: string): Promise<OrchestratorContext> {
+  // Relevance-aware loading: when a query is given and embeddings exist,
+  // merge the semantically closest entries with the most recent ones.
+  const { semanticSearch, embeddingsEnabled } = await import("./embeddings");
+  const semanticPromise =
+    query && embeddingsEnabled() ? semanticSearch(query, 30).catch(() => []) : Promise.resolve([]);
+
+  const [recentMemory, allOpps, ctxRows, teamRows, semantic] = await Promise.all([
     db
       .select()
       .from(memoryEntriesTable)
@@ -121,7 +127,16 @@ export async function loadContext(): Promise<OrchestratorContext> {
       .where(inArray(agentMessagesTable.toAgentId, ["orchestrator", "all"]))
       .orderBy(desc(agentMessagesTable.createdAt))
       .limit(8),
+    semanticPromise,
   ]);
+
+  // Semantic hits first, then recency; dedupe by id.
+  const seen = new Set<number>();
+  const allMemory = [...semantic, ...recentMemory].filter((m) => {
+    if (seen.has(m.id)) return false;
+    seen.add(m.id);
+    return true;
+  });
 
   let brain: BrainData | null = null;
   let setupCtx: Record<string, unknown> | null = null;

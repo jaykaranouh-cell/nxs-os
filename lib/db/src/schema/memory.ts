@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, vector } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -24,6 +24,7 @@ export const memoryEntriesTable = pgTable("memory_entries", {
   linkedProjects: text("linked_projects"),
   nextAction: text("next_action"),
   createdBy: text("created_by"),
+  embedding: vector("embedding", { dimensions: 1536 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at"),
   reviewedAt: timestamp("reviewed_at"),

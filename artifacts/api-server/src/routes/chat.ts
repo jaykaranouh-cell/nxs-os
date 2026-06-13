@@ -47,7 +47,7 @@ interface TurnSetup {
 
 async function setupTurn(content: string, userMsgId: number): Promise<TurnSetup> {
   const [ctx, recentHistory, compaction] = await Promise.all([
-    loadContext(),
+    loadContext(content),
     db.select().from(chatMessagesTable).orderBy(desc(chatMessagesTable.timestamp)).limit(21),
     loadConversationSummary(),
   ]);

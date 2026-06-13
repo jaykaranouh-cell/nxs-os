@@ -14,6 +14,7 @@ import { loadContext } from "./orchestrator/context";
 import { buildAgentBriefing } from "./orchestrator/prompts";
 import { runObsidianSync } from "./obsidian";
 import { runGrowthSession } from "./orchestrator/autonomy";
+import { backfillEmbeddings } from "./orchestrator/embeddings";
 import { logger } from "./logger";
 import { notifyJay } from "./notify";
 
@@ -148,6 +149,8 @@ export function startScheduler(): void {
   cron.schedule("0 4 * * *", safely("mailbox-cleanup", mailboxCleanupJob));
   // Obsidian bridge: ingest inbox + mirror memory every 10 minutes, and once at boot
   cron.schedule("*/10 * * * *", safely("obsidian-sync", runObsidianSync));
+  cron.schedule("*/10 * * * *", safely("embeddings", backfillEmbeddings));
   void safely("obsidian-sync", runObsidianSync)();
+  void safely("embeddings", backfillEmbeddings)();
   logger.info("scheduler: jobs registered (brief 07:00, watchdog 07:30, ideas Mon 08:00, growth 17:00, obsidian */10m)");
 }
