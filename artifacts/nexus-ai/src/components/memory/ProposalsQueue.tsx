@@ -12,6 +12,7 @@ import {
 } from "@workspace/api-client-react";
 import { Check, Inbox, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ExpandableText } from "@/components/ExpandableText";
 
 const SOURCE_LABEL: Record<string, string> = {
   chat: "from chat",
@@ -63,7 +64,7 @@ export function ProposalsQueue() {
                   {SOURCE_LABEL[p.source] ?? p.source}
                 </span>
               </div>
-              <p className="text-[11px] text-white/50 leading-relaxed mt-1 line-clamp-2">{p.content}</p>
+              <ExpandableText text={p.content} className="text-[11px] text-white/50 leading-relaxed mt-1" clamp="line-clamp-2" />
               {p.nextAction && (
                 <p className="text-[10px] text-primary/60 mt-1">→ {p.nextAction}</p>
               )}

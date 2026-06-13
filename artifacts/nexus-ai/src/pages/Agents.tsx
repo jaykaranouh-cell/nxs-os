@@ -15,6 +15,7 @@ import {
   ArrowRight, Target, RefreshCw, Eye, Link2
 } from "lucide-react";
 import { Link } from "wouter";
+import { ExpandableText } from "@/components/ExpandableText";
 
 type ExecLevel = "green" | "amber" | "red";
 
@@ -436,7 +437,7 @@ export default function Agents() {
                     {m.fromAgentName}
                     <span className="text-muted-foreground/60 font-normal"> → {m.toAgentId === "all" ? "everyone" : m.toAgentId === "orchestrator" ? "Maya" : m.toAgentId === "jay" ? "Jay" : m.toAgentId}</span>
                   </p>
-                  <p className="text-[11px] text-muted-foreground leading-relaxed whitespace-pre-line line-clamp-3">{m.content}</p>
+                  <ExpandableText text={m.content} className="text-[11px] text-muted-foreground leading-relaxed whitespace-pre-line" />
                 </div>
                 <div className="flex flex-col items-end gap-1 flex-shrink-0">
                   <span className="text-[9px] text-muted-foreground/50">
