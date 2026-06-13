@@ -23,6 +23,7 @@ import type { Anthropic } from "@workspace/integrations-anthropic-server";
 import { DEPARTMENT_AGENTS, getAgent } from "./agents";
 import { runDepartmentAgent, sendAgentMessage } from "./dispatch";
 import { setAgentName } from "./roster";
+import { notifyJay } from "../notify";
 import { loadContext } from "./context";
 import { buildAgentBriefing } from "./prompts";
 import { completeText } from "./llm";
@@ -275,6 +276,38 @@ const updateOpportunity = {
 };
 
 // ─── Agent tools: Maya commands her own team ──────────────────────────────────
+
+const notifyJaySchema = z.object({
+  title: z.string().min(3).max(80),
+  message: z.string().min(5).max(500),
+  urgent: z.boolean().default(false),
+});
+
+const notifyJayTool = {
+  definition: {
+    name: "notify_jay",
+    description:
+      "Send a push notification to Jay's phone. Use ONLY for things that genuinely can't wait until he next opens the OS: hard blockers, time-sensitive deal events, or something he explicitly asked to be pinged about. Never for routine updates.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        title: { type: "string" },
+        message: { type: "string" },
+        urgent: { type: "boolean", description: "True only for genuinely urgent items" },
+      },
+      required: ["title", "message"],
+    },
+  },
+  schema: notifyJaySchema,
+  async run(input: z.infer<typeof notifyJaySchema>): Promise<string> {
+    const sent = await notifyJay(input.title, input.message, {
+      priority: input.urgent ? "urgent" : "high",
+      tags: ["bell"],
+    });
+    await logAction("Notified Jay", input.title);
+    return sent ? `Push sent: "${input.title}"` : "Push not configured (NXS_NTFY_TOPIC unset)";
+  },
+};
 
 const nameAgentSchema = z.object({
   agentId: z.enum(["sales", "marketing", "research", "finance"]),
@@ -562,7 +595,7 @@ export const COMPUTER_TOOL_DEFINITIONS: Anthropic.Tool[] = COMPUTER_TOOLS.map((t
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 
-const BASE_TOOLS = [createMemoryEntry, updateLeadStage, createAgentTask, logIdea, updateOpportunity, createOpportunity, dispatchAgent, spawnAgent, messageTeam, nameAgent];
+const BASE_TOOLS = [createMemoryEntry, updateLeadStage, createAgentTask, logIdea, updateOpportunity, createOpportunity, dispatchAgent, spawnAgent, messageTeam, nameAgent, notifyJayTool];
 const TOOLS = [...BASE_TOOLS, ...COMPUTER_TOOLS];
 
 export const TOOL_DEFINITIONS: Anthropic.Tool[] = BASE_TOOLS.map((t) => t.definition);

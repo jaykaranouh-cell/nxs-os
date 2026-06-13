@@ -12,6 +12,7 @@ import { buildSystemBlocks } from "./prompts";
 import { TOOL_DEFINITIONS, TOOL_GUIDANCE } from "./tools";
 import { runSynthesis } from "../../routes/chat";
 import { logger } from "../logger";
+import { notifyJay } from "../notify";
 
 const LAST_RUN_KEY = "autonomy-last-run";
 const MIN_HOURS_BETWEEN = 18;
@@ -91,5 +92,10 @@ export async function runGrowthSession(force = false): Promise<string | null> {
   });
 
   logger.info({ actions: toolEvents.length }, "autonomy: growth session complete");
+  await notifyJay(
+    "Maya ran a strategy session",
+    `${toolEvents.length} action${toolEvents.length === 1 ? "" : "s"} queued. ${text.trim().slice(0, 250)}`,
+    { tags: ["seedling"] }
+  );
   return text;
 }

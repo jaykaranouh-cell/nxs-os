@@ -15,6 +15,7 @@ import { buildAgentBriefing } from "./orchestrator/prompts";
 import { runObsidianSync } from "./obsidian";
 import { runGrowthSession } from "./orchestrator/autonomy";
 import { logger } from "./logger";
+import { notifyJay } from "./notify";
 
 const hasLlmKey = () => Boolean(process.env.ANTHROPIC_API_KEY);
 
@@ -22,8 +23,10 @@ const hasLlmKey = () => Boolean(process.env.ANTHROPIC_API_KEY);
 
 async function morningBriefJob() {
   if (!hasLlmKey()) return;
-  await generateBrief();
+  const brief = await generateBrief();
   logger.info("scheduler: morning brief generated");
+  const headline = (brief as { headline?: string }).headline;
+  if (headline) await notifyJay("Morning Brief ready", headline, { tags: ["sunrise"] });
 }
 
 // ─── 07:30 daily — risk watchdog: stale critical / needs-review items ────────
@@ -59,7 +62,14 @@ async function riskWatchdogJob() {
       priority: "high",
     });
   }
-  if (stale.length) logger.info({ count: stale.length }, "scheduler: risk watchdog flagged stale items");
+  if (stale.length) {
+    logger.info({ count: stale.length }, "scheduler: risk watchdog flagged stale items");
+    await notifyJay(
+      "Risk watchdog",
+      `${stale.length} stale critical item${stale.length === 1 ? "" : "s"} need attention: ${stale.map((e) => e.title).join("; ").slice(0, 200)}`,
+      { priority: "high", tags: ["warning"] }
+    );
+  }
 }
 
 // ─── Monday 08:00 — one proactive idea per department ─────────────────────────
