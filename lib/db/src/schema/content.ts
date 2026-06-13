@@ -11,6 +11,8 @@ export const contentDraftsTable = pgTable("content_drafts", {
   platform: text("platform").notNull().default("linkedin"),
   content: text("content").notNull(),
   hook: text("hook"), // optional short hook/title for the list
+  imageUrl: text("image_url"), // generated visual (served under /generated)
+  imagePrompt: text("image_prompt"), // prompt used to generate the image
   status: text("status").notNull().default("draft"), // draft | posted | archived
   createdBy: text("created_by").notNull().default("maya"),
   source: text("source"), // e.g. "chat", "autonomy", "weekly-ideas"

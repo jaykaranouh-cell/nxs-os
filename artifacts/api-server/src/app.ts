@@ -7,6 +7,7 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { authGuard } from "./middlewares/auth";
+import { GENERATED_DIR } from "./lib/higgsfield";
 
 const app: Express = express();
 
@@ -40,6 +41,11 @@ const voiceLimiter = rateLimit({ windowMs: 60_000, limit: 30, standardHeaders: t
 app.use("/api/voice", voiceLimiter);
 
 app.use("/api", authGuard, router);
+
+// Generated marketing images (Higgsfield). Served unauthenticated so <img> tags
+// can load them; filenames are randomised.
+fs.mkdirSync(GENERATED_DIR, { recursive: true });
+app.use("/generated", express.static(GENERATED_DIR));
 
 // Production: serve the built frontend so the whole OS lives on one port.
 // In dev (no dist present) this is a no-op and Vite serves the frontend.

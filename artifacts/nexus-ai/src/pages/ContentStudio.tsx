@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Linkedin, Copy, ExternalLink, Check, Trash2, Plus, Sparkles, Clock, CheckCircle2,
+  Wand2, Download, Loader2, ImageIcon, AlertTriangle,
 } from "lucide-react";
 
 interface Draft {
@@ -17,6 +18,8 @@ interface Draft {
   platform: string;
   content: string;
   hook: string | null;
+  imageUrl: string | null;
+  imagePrompt: string | null;
   status: string;
   createdBy: string;
   source: string | null;
@@ -49,11 +52,47 @@ const api = {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
   },
+  genImage: async (id: number): Promise<Draft> => {
+    const r = await fetch(`/api/content/drafts/${id}/image`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: "{}",
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      const e = new Error(j.error || `HTTP ${r.status}`) as Error & { code?: string };
+      if (j.code) e.code = j.code;
+      throw e;
+    }
+    return r.json();
+  },
+  status: async (): Promise<{ ready: boolean }> => {
+    const r = await fetch("/api/content/higgsfield/status", { headers: authHeaders() });
+    return r.ok ? r.json() : { ready: false };
+  },
 };
 
 function DraftCard({ draft, onChanged }: { draft: Draft; onChanged: () => void }) {
   const [copied, setCopied] = useState(false);
+  const [genLoading, setGenLoading] = useState(false);
+  const [genErr, setGenErr] = useState<string | null>(null);
   const posted = draft.status === "posted";
+
+  const genImage = async () => {
+    setGenErr(null);
+    setGenLoading(true);
+    try {
+      await api.genImage(draft.id);
+      onChanged();
+    } catch (e) {
+      const err = e as Error & { code?: string };
+      setGenErr(err.code === "not_connected"
+        ? "Higgsfield isn't connected — run `higgsfield auth login` in your terminal once."
+        : err.message || "Image generation failed.");
+    } finally {
+      setGenLoading(false);
+    }
+  };
 
   const post = async () => {
     try { await navigator.clipboard.writeText(draft.content); setCopied(true); setTimeout(() => setCopied(false), 2500); } catch {}
@@ -75,11 +114,38 @@ function DraftCard({ draft, onChanged }: { draft: Draft; onChanged: () => void }
         </span>
       </div>
       <p className="text-sm text-foreground/85 leading-relaxed whitespace-pre-line">{draft.content}</p>
+
+      {/* Generated visual */}
+      {draft.imageUrl && (
+        <div className="mt-3 relative group/img">
+          <img src={draft.imageUrl} alt="Generated visual" className="w-full rounded-lg border border-white/10" />
+          <a href={draft.imageUrl} download
+            className="absolute top-2 right-2 flex items-center gap-1 text-[10px] bg-black/60 backdrop-blur text-white/90 px-2 py-1 rounded-md opacity-0 group-hover/img:opacity-100 transition-opacity">
+            <Download className="h-3 w-3" /> Save
+          </a>
+        </div>
+      )}
+      {genLoading && (
+        <div className="mt-3 flex items-center gap-2 text-[11px] text-primary/70 border border-primary/20 bg-primary/5 rounded-lg px-3 py-2">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating visual with Higgsfield… this takes up to a couple of minutes.
+        </div>
+      )}
+      {genErr && (
+        <div className="mt-3 flex items-start gap-2 text-[11px] text-yellow-400/90 border border-yellow-400/20 bg-yellow-400/5 rounded-lg px-3 py-2">
+          <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" /> <span className="whitespace-pre-line">{genErr}</span>
+        </div>
+      )}
+
       {!posted && (
         <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-white/8">
           <Button size="sm" onClick={post} className="h-8 gap-1.5 bg-[#0a66c2] hover:bg-[#0a66c2]/85 text-white">
             {copied ? <Check className="h-3.5 w-3.5" /> : <ExternalLink className="h-3.5 w-3.5" />}
             {copied ? "Copied — paste & post" : "Copy & open LinkedIn"}
+          </Button>
+          <Button size="sm" variant="outline" disabled={genLoading} onClick={genImage}
+            className="h-8 gap-1.5 border-primary/25 text-primary/80 hover:bg-primary/10">
+            {genLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : draft.imageUrl ? <Wand2 className="h-3.5 w-3.5" /> : <ImageIcon className="h-3.5 w-3.5" />}
+            {draft.imageUrl ? "Regenerate image" : "Generate image"}
           </Button>
           <Button size="sm" variant="outline" className="h-8 gap-1.5 border-white/15 text-white/60"
             onClick={async () => { try { await navigator.clipboard.writeText(draft.content); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch {} }}>
@@ -102,6 +168,7 @@ function DraftCard({ draft, onChanged }: { draft: Draft; onChanged: () => void }
 export default function ContentStudio() {
   const queryClient = useQueryClient();
   const { data: drafts, isLoading } = useQuery({ queryKey: ["content-drafts"], queryFn: api.list, refetchInterval: 20000 });
+  const { data: hf } = useQuery({ queryKey: ["higgsfield-status"], queryFn: api.status, refetchInterval: 60000 });
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["content-drafts"] });
   const create = useMutation({ mutationFn: api.create, onSuccess: invalidate });
 
@@ -126,6 +193,13 @@ export default function ContentStudio() {
             <Plus className="h-3.5 w-3.5" /> New
           </Button>
         </div>
+
+        {hf && !hf.ready && (
+          <div className="flex items-start gap-2 text-[11px] text-yellow-400/90 border border-yellow-400/20 bg-yellow-400/5 rounded-lg px-3 py-2">
+            <Wand2 className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+            <span>Image generation needs a one-time connect: run <code className="font-mono bg-black/30 px-1 rounded">higgsfield auth login</code> in your terminal. Posts still draft and publish fine without it.</span>
+          </div>
+        )}
 
         {adding && (
           <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-2">

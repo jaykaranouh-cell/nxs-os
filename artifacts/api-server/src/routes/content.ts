@@ -6,8 +6,16 @@
 import { Router } from "express";
 import { db, contentDraftsTable, insertContentDraftSchema } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
+import { generateImage, higgsfieldReady, HiggsfieldNotReady } from "../lib/higgsfield";
 
 const router = Router();
+
+/** Build a clean visual prompt from a post when Jay doesn't supply one. */
+function imagePromptFor(content: string, override?: string): string {
+  if (override && override.trim()) return override.trim();
+  const gist = content.replace(/\s+/g, " ").slice(0, 220);
+  return `Professional, modern LinkedIn marketing visual. Clean minimal tech aesthetic, deep blue and cyan palette, soft studio lighting, high detail, no text, no logos. Concept based on this post: ${gist}`;
+}
 
 const serialize = (d: typeof contentDraftsTable.$inferSelect) => ({
   ...d,
@@ -57,6 +65,36 @@ router.post("/content/drafts/:id/posted", async (req, res) => {
     .returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json(serialize(row));
+});
+
+// GET /content/higgsfield/status — is image generation connected?
+router.get("/content/higgsfield/status", async (_req, res) => {
+  res.json({ ready: await higgsfieldReady() });
+});
+
+// POST /content/drafts/:id/image — generate a visual for a draft (optional { prompt })
+router.post("/content/drafts/:id/image", async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [draft] = await db.select().from(contentDraftsTable).where(eq(contentDraftsTable.id, id));
+  if (!draft) { res.status(404).json({ error: "Not found" }); return; }
+
+  const prompt = imagePromptFor(draft.content, typeof req.body?.prompt === "string" ? req.body.prompt : undefined);
+  try {
+    const imageUrl = await generateImage(prompt, `draft${id}`);
+    const [row] = await db
+      .update(contentDraftsTable)
+      .set({ imageUrl, imagePrompt: prompt })
+      .where(eq(contentDraftsTable.id, id))
+      .returning();
+    res.json(serialize(row));
+  } catch (err) {
+    if (err instanceof HiggsfieldNotReady) {
+      res.status(409).json({ error: err.message, code: "not_connected" });
+      return;
+    }
+    res.status(502).json({ error: (err as Error).message || "Image generation failed" });
+  }
 });
 
 // DELETE /content/drafts/:id
