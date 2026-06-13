@@ -239,6 +239,48 @@ function MessageContent({ content }: { content: string }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
+
+// Expandable agent contributions under an orchestrator message.
+function AgentActions({ json }: { json: string }) {
+  const [open, setOpen] = useState(false);
+  let actions: Array<{ agentName: string; action: string; result: string | null }> = [];
+  try { actions = JSON.parse(json); } catch { return null; }
+  if (!actions.length) return null;
+  return (
+    <div className="w-full max-w-full">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex flex-wrap items-center gap-1 text-left"
+      >
+        {actions.map((a, i) => (
+          <Badge key={i} variant="outline" className="bg-background border-primary/20 text-primary/70 text-[9px] font-mono max-w-[220px]">
+            <Activity className="w-2 h-2 mr-1 shrink-0" />
+            <span className="truncate">{a.agentName}</span>
+          </Badge>
+        ))}
+        <span className="text-[9px] text-muted-foreground/60 flex items-center gap-0.5 hover:text-primary/70">
+          {open ? "hide" : "details"}
+          <ChevronRight className={`h-2.5 w-2.5 transition-transform ${open ? "rotate-90" : ""}`} />
+        </span>
+      </button>
+      {open && (
+        <div className="mt-2 space-y-2 rounded-lg border border-border/40 bg-background/50 p-3">
+          {actions.map((a, i) => (
+            <div key={i} className="text-[11px] border-b border-border/20 last:border-0 pb-2 last:pb-0">
+              <div className="font-semibold text-primary/80">{a.agentName}</div>
+              {a.action && <div className="text-muted-foreground/70 italic mt-0.5">{a.action}</div>}
+              {a.result && (
+                <div className="text-foreground/75 mt-1 whitespace-pre-wrap break-words leading-relaxed">{a.result}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Orchestrator() {
   const [input, setInput] = useState("");
   const [execLevel, setExecLevel] = useState<ExecLevel>("amber");
@@ -562,21 +604,7 @@ export default function Orchestrator() {
                         </button>
                       )}
                     </div>
-                    {msg.agentActions && (() => {
-                      try {
-                        const actions = JSON.parse(msg.agentActions);
-                        return (
-                          <div className="flex flex-wrap gap-1 max-w-full">
-                            {actions.map((action: { agentName: string; action: string }, i: number) => (
-                              <Badge key={i} variant="outline" className="bg-background border-primary/20 text-primary/70 text-[9px] font-mono max-w-[220px] truncate">
-                                <Activity className="w-2 h-2 mr-1 shrink-0" />
-                                <span className="truncate">{action.agentName}</span>
-                              </Badge>
-                            ))}
-                          </div>
-                        );
-                      } catch { return null; }
-                    })()}
+                    {msg.agentActions && <AgentActions json={msg.agentActions} />}
                   </div>
                 </div>
               ))

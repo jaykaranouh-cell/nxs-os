@@ -362,7 +362,7 @@ export function toAgentActions(runs: AgentRun[]): AgentAction[] {
     agentId: r.agent.id,
     agentName: r.agent.name,
     action: r.task,
-    result: r.findings.length > 180 ? `${r.findings.slice(0, 177)}…` : r.findings,
+    result: r.findings, // full report; the UI truncates the chip and expands on click
   }));
   actions.push({
     agentId: "orchestrator",
