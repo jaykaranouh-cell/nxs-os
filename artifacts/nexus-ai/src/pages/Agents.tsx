@@ -479,24 +479,7 @@ export default function Agents() {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-2">
-            {[
-              { agent: "Memory Agent", action: "Tagged 3 entries · Detected 1 stale · Suggested 2 connections", time: "2 min ago" },
-              { agent: "Intelligence Agent", action: "Flagged competitor gap: no persistent memory in any AI tool → added to Opportunity Engine", time: "1 hr ago" },
-              { agent: "Sales Mode", action: "Qualified new lead: Amara Diallo (FlowStack) → moved to hot pipeline", time: "2 hrs ago" },
-              { agent: "Execution Agent", action: "Created task: Draft partnership outreach template · Due June 15", time: "3 hrs ago" },
-              { agent: "Marketing Mode", action: "Scheduled 3 LinkedIn posts for the week · drafted content brief", time: "5 hrs ago" },
-            ].map((item, i) => (
-              <div key={i} className="flex items-start gap-3 p-3 bg-card/40 border border-border/30 rounded-lg">
-                <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" />
-                <div className="flex-1">
-                  <p className="text-xs font-semibold text-foreground">{item.agent}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{item.action}</p>
-                </div>
-                <span className="text-[9px] text-muted-foreground/50 flex-shrink-0">{item.time}</span>
-              </div>
-            ))}
-          </div>
+          <p className="text-[11px] text-muted-foreground/40 italic p-3">No agent activity yet today.</p>
         )}
       </div>
     </div>

@@ -705,7 +705,7 @@ function BuildingLabel({
 
 // ─── City Canvas ──────────────────────────────────────────────────────────────
 
-function CityCanvas({ onSelect, mode }: { onSelect: (id: string) => void; mode: "night" | "day" }) {
+function CityCanvas({ onSelect, mode, metrics }: { onSelect: (id: string) => void; mode: "night" | "day"; metrics: Record<string, string> }) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const hq = BUILDINGS.find(b => b.id === "hq")!;
 
@@ -723,7 +723,7 @@ function CityCanvas({ onSelect, mode }: { onSelect: (id: string) => void; mode: 
       {SORTED.map(b => (
         <IsoBuilding
           key={b.id}
-          building={b}
+          building={{ ...b, metric: metrics[b.id] ?? b.metric }}
           onClick={() => onSelect(b.id)}
           isHovered={hoveredId === b.id}
           onHover={v => setHoveredId(v ? b.id : null)}
@@ -734,7 +734,7 @@ function CityCanvas({ onSelect, mode }: { onSelect: (id: string) => void; mode: 
       {SORTED.map(b => (
         <BuildingLabel
           key={b.id}
-          building={b}
+          building={{ ...b, metric: metrics[b.id] ?? b.metric }}
           isHovered={hoveredId === b.id}
           onClick={() => onSelect(b.id)}
         />
@@ -1103,6 +1103,26 @@ export default function NXSCity() {
     })),
   };
 
+  // Live metrics for the building labels — real data, never the static strings.
+  const fmtK = (n: number) => (n >= 1000 ? `$${Math.round(n / 1000)}K` : `$${Math.round(n)}`);
+  const openLeadCount = leads.filter((l) => !["won", "lost"].includes(l.stage)).length;
+  const pipelineValue = leads
+    .filter((l) => !["won", "lost"].includes(l.stage))
+    .reduce((sum, l) => sum + parseFloat(String(l.estimatedValue ?? 0)), 0);
+  const wonValue = leads
+    .filter((l) => l.stage === "won")
+    .reduce((sum, l) => sum + parseFloat(String(l.estimatedValue ?? 0)), 0);
+  const liveMetrics: Record<string, string> = {
+    hq: `${memStatus?.totalMemories ?? memories.length} memories loaded`,
+    memory: `${memories.length} entries · ${briefing?.highPriorityCount ?? 0} high-priority`,
+    sales: `${openLeadCount} open leads · ${fmtK(pipelineValue)} pipeline`,
+    finance: `${fmtK(wonValue)} won · $250K target`,
+    radar: `${opps.length} opportunities tracked`,
+    intelligence: `${briefing?.highPriorityCount ?? 0} high-priority signals`,
+    operations: `${briefing?.atRisk?.length ?? 0} items at risk`,
+    delivery: `${leads.filter((l) => l.stage === "won").length} active clients`,
+  };
+
   const selected = BUILDINGS.find(b => b.id === selectedId) ?? null;
 
   return (
@@ -1129,7 +1149,7 @@ export default function NXSCity() {
             <CityHero />
             <div className="relative flex-1 rounded-2xl border border-white/5 overflow-hidden bg-[#06090f]" style={{ minHeight: 480 }}>
               <div className="h-full overflow-auto">
-                <CityCanvas onSelect={setSelectedId} mode={mode} />
+                <CityCanvas onSelect={setSelectedId} mode={mode} metrics={liveMetrics} />
               </div>
               {/* HUD overlays — desktop only, never block building clicks */}
               <div className="pointer-events-none absolute inset-0 hidden lg:block">

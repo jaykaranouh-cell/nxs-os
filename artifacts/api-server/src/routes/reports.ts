@@ -16,9 +16,11 @@ router.get("/reports/metrics", async (req, res) => {
   const openLeads = leads.filter((l) => !["closed", "rejected"].includes(l.status)).length;
   const activeTasksCount = tasks.filter((t) => t.status === "in_progress").length;
 
-  // Simulated revenue/expense figures (placeholder until real integrations)
-  const totalRevenue = 47500;
-  const totalExpenses = 12800;
+  // Real revenue: sum of won leads. Expenses have no data source yet — honest zero.
+  const totalRevenue = leads
+    .filter((l) => l.stage === "won")
+    .reduce((sum, l) => sum + parseFloat(l.estimatedValue ?? "0"), 0);
+  const totalExpenses = 0;
   const conversionRate = leads.length > 0
     ? (leads.filter((l) => l.status === "closed").length / leads.length) * 100
     : 0;
@@ -28,7 +30,7 @@ router.get("/reports/metrics", async (req, res) => {
     qualifiedLeads.length > 0 ? qualifiedLeads[0].nextAction ?? null : null;
 
   res.json({
-    activeAgents: 5,
+    activeAgents: 5, // Maya + 4 departments, always on
     openLeads,
     pendingIdeas: ideas.length,
     totalRevenue,
@@ -74,26 +76,30 @@ router.get("/reports/pipeline", async (req, res) => {
 // GET /reports/finance
 router.get("/reports/finance", async (req, res) => {
   // Placeholder financial data — designed to connect to accounting integrations later
-  const revenue = 47500;
-  const expenses = 12800;
+  // Real figures only. Revenue = closed-won lead value; expenses/ROI have no
+  // data source yet and report honest zeros until an accounting integration.
+  const leads = await db.select().from(leadsTable);
+  const won = leads.filter((l) => l.stage === "won");
+  const revenue = won.reduce((sum, l) => sum + parseFloat(l.estimatedValue ?? "0"), 0);
+  const expenses = 0;
   const cashFlow = revenue - expenses;
-  const campaignROI = 3.2;
+  const campaignROI = 0;
 
-  const revenueByMonth = [
-    { month: "Jan", value: 6200 },
-    { month: "Feb", value: 7800 },
-    { month: "Mar", value: 8400 },
-    { month: "Apr", value: 9100 },
-    { month: "May", value: 8200 },
-    { month: "Jun", value: 7800 },
-  ];
-
-  const topExpenses = [
-    { category: "Software & Tools", amount: 4200 },
-    { category: "Advertising", amount: 3800 },
-    { category: "Contractors", amount: 2900 },
-    { category: "Operations", amount: 1900 },
-  ];
+  const months: Array<{ month: string; value: number }> = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    const label = d.toLocaleString("en-AU", { month: "short" });
+    const value = won
+      .filter((l) => {
+        const t = l.updatedAt ?? l.createdAt;
+        return t.getMonth() === d.getMonth() && t.getFullYear() === d.getFullYear();
+      })
+      .reduce((sum, l) => sum + parseFloat(l.estimatedValue ?? "0"), 0);
+    months.push({ month: label, value });
+  }
+  const revenueByMonth = months;
+  const topExpenses: Array<{ category: string; amount: number }> = [];
 
   res.json({ revenue, expenses, cashFlow, campaignROI, revenueByMonth, topExpenses });
 });

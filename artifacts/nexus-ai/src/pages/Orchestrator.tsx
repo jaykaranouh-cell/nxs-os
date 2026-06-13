@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import {
   useListChatMessages, getListChatMessagesQueryKey,
   useGetMemoryBriefing, useGetMemoryAgentStatus,
-  useGetSystemContext, useListOpportunities,
+  useGetSystemContext, useListOpportunities, useListAgents,
   useListMemoryEntries,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -41,18 +41,6 @@ const QUICK_PROMPTS = [
   "Am I drifting from my goals?",
   "What's my highest-leverage move?",
   "What's my biggest risk right now?",
-];
-
-const ALL_AGENTS = [
-  { name: "Memory Agent",       status: "active"  as const, color: "bg-cyan-400" },
-  { name: "Intelligence Agent", status: "active"  as const, color: "bg-violet-400" },
-  { name: "Execution Agent",    status: "active"  as const, color: "bg-green-400" },
-  { name: "Communication Agent",status: "standby" as const, color: "bg-yellow-400" },
-  { name: "Sales Mode",         status: "active"  as const, color: "bg-orange-400" },
-  { name: "Marketing Mode",     status: "active"  as const, color: "bg-pink-400" },
-  { name: "Research Mode",      status: "active"  as const, color: "bg-indigo-400" },
-  { name: "Finance Mode",       status: "standby" as const, color: "bg-yellow-300" },
-  { name: "Operations Mode",    status: "standby" as const, color: "bg-blue-400" },
 ];
 
 // ─── Markdown renderer ────────────────────────────────────────────────────────
@@ -274,6 +262,7 @@ export default function Orchestrator() {
   const search = useSearch();
   const qParam = new URLSearchParams(search).get("q");
   const { data: agentStatus } = useGetMemoryAgentStatus();
+  const { data: realAgents } = useListAgents();
   const { data: contextData } = useGetSystemContext();
   const { data: opps } = useListOpportunities({});
   const { data: decisions } = useListMemoryEntries({ category: "decisions" });
@@ -846,13 +835,13 @@ export default function Orchestrator() {
             </CardTitle>
           </CardHeader>
           <CardContent className="px-3 pb-3 space-y-0.5">
-            {ALL_AGENTS.map((agent) => (
-              <div key={agent.name} className="flex items-center justify-between px-2 py-1.5 rounded hover:bg-muted/20">
+            {(realAgents ?? []).map((agent) => (
+              <div key={agent.id} className="flex items-center justify-between px-2 py-1.5 rounded hover:bg-muted/20">
                 <div className="flex items-center gap-2">
-                  <div className={`w-1.5 h-1.5 rounded-full ${agent.status === "active" ? `${agent.color} animate-pulse` : "bg-muted-foreground/30"}`} />
-                  <span className="text-xs text-muted-foreground">{agent.name}</span>
+                  <div className={`w-1.5 h-1.5 rounded-full ${agent.status === "busy" ? "bg-yellow-400 animate-pulse" : "bg-green-400"}`} />
+                  <span className="text-xs text-muted-foreground">{agent.name} <span className="text-muted-foreground/40">· {agent.department}</span></span>
                 </div>
-                <span className={`text-[8px] font-mono ${agent.status === "active" ? "text-green-400" : "text-muted-foreground/40"}`}>
+                <span className={`text-[8px] font-mono ${agent.status !== "busy" ? "text-green-400" : "text-muted-foreground/40"}`}>
                   {agent.status.toUpperCase()}
                 </span>
               </div>
