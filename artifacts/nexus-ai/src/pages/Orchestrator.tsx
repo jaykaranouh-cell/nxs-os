@@ -300,7 +300,7 @@ export default function Orchestrator() {
   const voiceOnRef = useRef(voiceOn);
   voiceOnRef.current = voiceOn;
   const hasSentInitialQuery = useRef(false);
-  const lastMessageCount = useRef(0);
+  const lastMessageId = useRef(0);
   const search = useSearch();
   const qParam = new URLSearchParams(search).get("q");
   const { data: agentStatus } = useGetMemoryAgentStatus();
@@ -328,9 +328,11 @@ export default function Orchestrator() {
   }, [messages, streamingContent, isStreaming]);
 
   useEffect(() => {
-    const count = messages?.length ?? 0;
-    if (count > lastMessageCount.current && count > 0) {
-      lastMessageCount.current = count;
+    // Track the newest message id, not the count: the list is capped at 50,
+    // so count stays flat in long chats and the optimistic copy never cleared.
+    const newestId = messages?.length ? messages[messages.length - 1].id : 0;
+    if (newestId !== lastMessageId.current) {
+      lastMessageId.current = newestId;
       setStreamingContent("");
       setLocalUserMessage(null);
     }
