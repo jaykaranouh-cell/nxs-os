@@ -4,6 +4,7 @@ import {
   opportunitiesTable,
   systemContextTable,
   agentMessagesTable,
+  leadsTable,
 } from "@workspace/db";
 import { desc, inArray } from "drizzle-orm";
 
@@ -58,6 +59,7 @@ export const DEFAULT_MAYA: BrainMaya = {
 
 export type MemRow = typeof memoryEntriesTable.$inferSelect;
 export type OppRow = typeof opportunitiesTable.$inferSelect;
+export type LeadRow = typeof leadsTable.$inferSelect;
 
 export interface TeamMessage {
   fromAgentName: string;
@@ -79,6 +81,7 @@ export interface OrchestratorContext {
   allOpps: OppRow[];
   hotOpps: OppRow[];
   notPursued: OppRow[];
+  pipeline: LeadRow[];
   totalMemory: number;
   setupCtx: Record<string, unknown> | null;
 }
@@ -115,7 +118,7 @@ export async function loadContext(query?: string): Promise<OrchestratorContext> 
   const objectivesPromise = activeObjectivesBlock().catch(() => "");
   const calendarPromise = upcomingEventsBlock().catch(() => "");
 
-  const [recentMemory, allOpps, ctxRows, teamRows, semantic] = await Promise.all([
+  const [recentMemory, allOpps, ctxRows, teamRows, pipelineRows, semantic] = await Promise.all([
     db
       .select()
       .from(memoryEntriesTable)
@@ -133,6 +136,11 @@ export async function loadContext(query?: string): Promise<OrchestratorContext> 
       .where(inArray(agentMessagesTable.toAgentId, ["orchestrator", "all"]))
       .orderBy(desc(agentMessagesTable.createdAt))
       .limit(8),
+    db
+      .select()
+      .from(leadsTable)
+      .orderBy(desc(leadsTable.updatedAt), desc(leadsTable.createdAt))
+      .limit(60),
     semanticPromise,
   ]);
 
@@ -201,6 +209,7 @@ export async function loadContext(query?: string): Promise<OrchestratorContext> 
     allOpps: activeOpps,
     hotOpps,
     notPursued,
+    pipeline: pipelineRows,
     totalMemory: allMemory.length,
     setupCtx,
   };

@@ -21,6 +21,7 @@ function makeCtx(overrides: Partial<OrchestratorContext> = {}): OrchestratorCont
     allOpps: [],
     hotOpps: [],
     notPursued: [],
+    pipeline: [],
     totalMemory: 0,
     setupCtx: null,
     ...overrides,

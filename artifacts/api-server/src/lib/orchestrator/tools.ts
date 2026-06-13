@@ -12,6 +12,7 @@ import {
   memoryEntriesTable,
   insertMemoryEntrySchema,
   leadsTable,
+  insertLeadSchema,
   agentTasksTable,
   agentLogsTable,
   ideasTable,
@@ -99,6 +100,65 @@ const createMemoryEntry = {
     const [entry] = await db.insert(memoryEntriesTable).values(values).returning();
     await logAction("Saved memory entry", `#${entry.id} [${entry.category}] ${entry.title}`);
     return `Memory saved: "${entry.title}" (#${entry.id}, ${entry.category}, ${entry.priority})`;
+  },
+};
+
+const createLeadSchema = z.object({
+    name: z.string().min(1),
+    company: z.string().optional(),
+    email: z.string().optional(),
+    estimatedValue: z.union([z.number(), z.string()]).optional(),
+    industry: z.string().optional(),
+    source: z.string().optional(),
+    stage: z.enum(LEAD_STAGES).optional(),
+    note: z.string().optional(),
+    nextAction: z.string().optional(),
+  });
+
+const createLead = {
+  definition: {
+    name: "create_lead",
+    description:
+      "Add a prospect, client, or deal to the sales pipeline. Use this whenever Jay mentions a real company or opportunity that isn't already in the pipeline (check the 'Sales Pipeline' context first to avoid duplicates) — so he never has to enter deals manually. Capture whatever details came up; only name is required.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        name: { type: "string", description: "Contact name, or the company if no contact is named" },
+        company: { type: "string", description: "Company name" },
+        email: { type: "string", description: "Contact email if known" },
+        estimatedValue: { type: "number", description: "Estimated deal value in AUD if mentioned" },
+        industry: { type: "string", description: "Industry/sector if known" },
+        source: { type: "string", description: "How the lead came in (referral, inbound, etc.)" },
+        stage: { type: "string", enum: [...LEAD_STAGES], description: "Pipeline stage; defaults to incoming" },
+        note: { type: "string", description: "Any context about the deal from the conversation" },
+        nextAction: { type: "string", description: "The next concrete step on this deal" },
+      },
+      required: ["name"],
+    },
+  },
+  schema: createLeadSchema,
+  async run(input: z.infer<typeof createLeadSchema>): Promise<string> {
+    const values = insertLeadSchema.parse({
+      name: input.name,
+      company: input.company ?? input.name,
+      email: input.email ?? "",
+      source: input.source ?? "Chat with Maya",
+      status: "new",
+      stage: input.stage ?? "incoming",
+      notes: input.note ? `[maya] ${input.note}` : null,
+      nextAction: input.nextAction ?? null,
+      estimatedValue: input.estimatedValue != null ? String(input.estimatedValue) : null,
+      industry: input.industry ?? null,
+      assignedAgentId: "sales",
+    });
+    const [lead] = await db.insert(leadsTable).values(values).returning();
+    const val = lead.estimatedValue ? ` · ~$${parseFloat(String(lead.estimatedValue)).toLocaleString()}` : "";
+    await logAction("Added lead to pipeline", `#${lead.id} ${lead.name} (${lead.company}) @ ${lead.stage}${val}`);
+    await db.insert(reversibleActionsTable).values({
+      kind: "lead_create", entityId: lead.id, entityLabel: `${lead.name} (${lead.company})`,
+      prevValue: "", newValue: lead.stage,
+    });
+    return `Added "${lead.name}"${lead.company && lead.company !== lead.name ? ` (${lead.company})` : ""} to the pipeline at ${lead.stage} (#${lead.id})${val}. You can move it anytime with update_lead_stage.`;
   },
 };
 
@@ -735,7 +795,7 @@ export const COMPUTER_TOOL_DEFINITIONS: Anthropic.Tool[] = COMPUTER_TOOLS.map((t
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 
-const BASE_TOOLS = [createMemoryEntry, updateLeadStage, createAgentTask, logIdea, updateOpportunity, createOpportunity, dispatchAgent, spawnAgent, messageTeam, nameAgent, notifyJayTool, instructAgent, teachAgent, createObjectiveTool, updateObjectiveTool];
+const BASE_TOOLS = [createMemoryEntry, createLead, updateLeadStage, createAgentTask, logIdea, updateOpportunity, createOpportunity, dispatchAgent, spawnAgent, messageTeam, nameAgent, notifyJayTool, instructAgent, teachAgent, createObjectiveTool, updateObjectiveTool];
 const TOOLS = [...BASE_TOOLS, ...COMPUTER_TOOLS];
 
 export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
@@ -754,7 +814,7 @@ export async function executeTool(name: string, input: unknown): Promise<string>
 }
 
 export const TOOL_GUIDANCE = `## Taking Action
-You can act on the system directly with your tools (save memory, move leads, create tasks, log ideas, update opportunities). When Jay reports something that changes the state of the business, record it with the appropriate tool rather than only describing what he should do. Use write tools sparingly and precisely — only for real state changes, never speculatively. You also command your own team: dispatch_agent sends a department agent (sales, marketing, research, finance) to investigate, and spawn_agent creates a one-off specialist with instructions you write. Use them when a question deserves dedicated analysis you don't have; integrate their reports into your answer and credit them. You and your agents have a real web browser: web_search finds information and browse_page reads any page's rendered content (read-only — you cannot click or submit). Use them to research prospects, competitors, pricing, and current facts instead of guessing. If you also have computer tools (open apps, open the browser on Jay's screen), they act on Jay's actual Mac: use them when showing him something beats describing it.`;
+You can act on the system directly with your tools (save memory, add and move pipeline deals, create tasks, log ideas, update opportunities). When Jay reports something that changes the state of the business, record it with the appropriate tool rather than only describing what he should do. Keep the sales pipeline current for him: when he mentions a prospect, client, or deal that isn't already in the "Sales Pipeline" context, add it with create_lead so he never has to enter deals manually — then move it through stages with update_lead_stage as it progresses. Check the pipeline context first so you don't create duplicates; capture the deal value and next step when they come up. Use write tools sparingly and precisely — only for real state changes, never speculatively. You also command your own team: dispatch_agent sends a department agent (sales, marketing, research, finance) to investigate, and spawn_agent creates a one-off specialist with instructions you write. Use them when a question deserves dedicated analysis you don't have; integrate their reports into your answer and credit them. You and your agents have a real web browser: web_search finds information and browse_page reads any page's rendered content (read-only — you cannot click or submit). Use them to research prospects, competitors, pricing, and current facts instead of guessing. If you also have computer tools (open apps, open the browser on Jay's screen), they act on Jay's actual Mac: use them when showing him something beats describing it.`;
 
 export const PROPOSE_ONLY_GUIDANCE = `## Proposing Action (manual approval mode)
 You cannot execute changes right now — Jay has execution set to manual approval. When the conversation implies a state change (a memory worth saving, a lead to move, a task to create), end your Next Move with the specific action you WOULD take, phrased so Jay can approve it.`;

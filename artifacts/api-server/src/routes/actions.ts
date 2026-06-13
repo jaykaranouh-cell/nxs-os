@@ -27,10 +27,15 @@ router.post("/actions/:id/undo", async (req, res) => {
     await db.update(leadsTable).set({ stage: action.prevValue, updatedAt: new Date() }).where(eq(leadsTable.id, action.entityId));
   } else if (action.kind === "opportunity_status") {
     await db.update(opportunitiesTable).set({ status: action.prevValue, updatedAt: new Date() }).where(eq(opportunitiesTable.id, action.entityId));
+  } else if (action.kind === "lead_create") {
+    await db.delete(leadsTable).where(eq(leadsTable.id, action.entityId));
   }
 
   await db.update(reversibleActionsTable).set({ undoneAt: new Date() }).where(eq(reversibleActionsTable.id, id));
-  res.json({ ok: true, reverted: `${action.entityLabel} → ${action.prevValue}` });
+  res.json({
+    ok: true,
+    reverted: action.kind === "lead_create" ? `Removed ${action.entityLabel} from pipeline` : `${action.entityLabel} → ${action.prevValue}`,
+  });
 });
 
 export default router;

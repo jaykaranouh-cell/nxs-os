@@ -4,7 +4,7 @@ import { pgTable, text, serial, integer, timestamp } from "drizzle-orm/pg-core";
  * Reversible agent actions — state changes an agent made that Jay can undo.
  * Records the previous value so a revert is one click.
  */
-export const REVERSIBLE_KIND = ["lead_stage", "opportunity_status"] as const;
+export const REVERSIBLE_KIND = ["lead_stage", "opportunity_status", "lead_create"] as const;
 
 export const reversibleActionsTable = pgTable("reversible_actions", {
   id: serial("id").primaryKey(),

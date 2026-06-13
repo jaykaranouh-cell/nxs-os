@@ -14,7 +14,7 @@ function ctx(overrides: Partial<OrchestratorContext> = {}): OrchestratorContext 
   return {
     brain: null, teamMessages: [], objectivesBlock: "", calendarBlock: "", goals: [], decisions: [], lessons: [],
     risks: [], priorities: [], topActions: [], allOpps: [], hotOpps: [], notPursued: [],
-    totalMemory: 0, setupCtx: null, ...overrides,
+    pipeline: [], totalMemory: 0, setupCtx: null, ...overrides,
   };
 }
 
@@ -50,7 +50,7 @@ describe("eval: prompt assembly", () => {
 describe("eval: capability surface", () => {
   it("Maya's full toolset is present (memory, team, objectives, web)", () => {
     const names = TOOL_DEFINITIONS.map((t) => t.name);
-    for (const t of ["create_memory_entry", "dispatch_agent", "spawn_agent", "create_objective", "teach_agent", "web_search"]) {
+    for (const t of ["create_memory_entry", "create_lead", "update_lead_stage", "dispatch_agent", "spawn_agent", "create_objective", "teach_agent", "web_search"]) {
       expect(names).toContain(t);
     }
   });

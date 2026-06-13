@@ -159,6 +159,23 @@ export function buildContextSections(ctx: OrchestratorContext): string[] {
     );
   }
 
+  if (ctx.pipeline?.length) {
+    const open = ctx.pipeline.filter((l) => l.stage !== "won" && l.stage !== "lost");
+    const closed = ctx.pipeline.length - open.length;
+    if (open.length) {
+      sections.push(
+        `## Sales Pipeline (current deals — use these IDs with update_lead_stage)\n${open
+          .slice(0, 18)
+          .map((l) => {
+            const val = l.estimatedValue ? ` ~$${parseFloat(String(l.estimatedValue)).toLocaleString()}` : "";
+            const next = l.nextAction ? ` · next: ${l.nextAction.slice(0, 60)}` : "";
+            return `- #${l.id} ${l.company || l.name}${l.company ? ` (${l.name})` : ""} — ${l.stage}${val}${next}`;
+          })
+          .join("\n")}${closed ? `\n(${closed} closed deal${closed !== 1 ? "s" : ""} not shown)` : ""}`
+      );
+    }
+  }
+
   if (ctx.topActions.length) {
     sections.push(
       `## Top Action Items\n${ctx.topActions.slice(0, 5).map((a) => `- ${a.title}`).join("\n")}`
