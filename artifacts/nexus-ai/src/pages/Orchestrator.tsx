@@ -571,7 +571,7 @@ export default function Orchestrator() {
                 <div className="text-center">
                   <p className="font-semibold text-foreground">NXS Orchestrator ready.</p>
                   <p className="text-sm text-muted-foreground mt-1 max-w-xs">
-                    Your AI Chief of Staff — reads your memory, brain, and opportunities before every reply. Ask anything.
+                    Your AI CEO — reads your memory, brain, and opportunities before every reply. Ask anything.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2 justify-center max-w-md">

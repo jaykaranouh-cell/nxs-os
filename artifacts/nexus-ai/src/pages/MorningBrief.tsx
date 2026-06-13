@@ -160,7 +160,7 @@ export default function MorningBrief() {
           <div className="relative overflow-hidden rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-5 sm:p-6">
             <div className="absolute -top-8 -right-8 w-40 h-40 bg-primary/5 rounded-full pointer-events-none" />
             <div className="relative">
-              <div className="text-[8px] font-black uppercase tracking-[0.25em] text-primary/40 mb-2">Chief of Staff Briefing</div>
+              <div className="text-[8px] font-black uppercase tracking-[0.25em] text-primary/40 mb-2">CEO Briefing</div>
               <p className="text-xl sm:text-2xl font-bold text-foreground leading-snug mb-3">{brief.headline}</p>
               <p className="text-sm text-muted-foreground leading-relaxed max-w-3xl">{brief.situationReport}</p>
             </div>
@@ -170,10 +170,10 @@ export default function MorningBrief() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Chief of Staff Call */}
             <div className="border border-primary/30 bg-primary/5 rounded-xl p-4 space-y-2">
-              <SectionLabel icon={<Zap className="h-3.5 w-3.5 text-primary" />} label="Chief of Staff Call" sub={brief.chiefOfStaffCall.timeframe} />
+              <SectionLabel icon={<Zap className="h-3.5 w-3.5 text-primary" />} label="The CEO's Call" sub={brief.chiefOfStaffCall.timeframe} />
               <p className="text-sm font-semibold text-foreground leading-snug">{brief.chiefOfStaffCall.action}</p>
               <p className="text-[11px] text-muted-foreground/70 leading-relaxed">{brief.chiefOfStaffCall.why}</p>
-              <Link href={`/orchestrator?q=${encodeURIComponent(`Chief of Staff priority: "${brief.chiefOfStaffCall.action}". Help me plan the first 30 minutes.`)}`}>
+              <Link href={`/orchestrator?q=${encodeURIComponent(`CEO priority: "${brief.chiefOfStaffCall.action}". Help me plan the first 30 minutes.`)}`}>
                 <button className="text-[10px] text-primary/50 hover:text-primary transition-colors flex items-center gap-0.5 mt-1">
                   Plan execution <ChevronRight className="h-3 w-3" />
                 </button>
@@ -340,7 +340,7 @@ export default function MorningBrief() {
             <div className="flex items-center gap-1.5">
               <Shield className="h-3 w-3 text-muted-foreground/30" />
               <span className="text-[9px] font-mono text-muted-foreground/30 uppercase tracking-wider">
-                AI Chief of Staff · NXS OS
+AI CEO · NXS OS
               </span>
             </div>
             <Link href={`/orchestrator?q=${encodeURIComponent(`Morning brief headline: "${brief.headline}". Walk me through the most important thing to focus on right now.`)}`}>

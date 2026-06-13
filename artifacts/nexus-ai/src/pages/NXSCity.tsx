@@ -136,10 +136,10 @@ const BUILDINGS: CampusBuilding[] = [
     roofHex: "#1d3c72", leftHex: "#0d2248", rightHex: "#060f22",
     accentHex: "#60a5fa", glowRgb: "96,165,250",
     status: "online", metric: "29 memories loaded",
-    description: "Central command and intelligence tower. Maya, your AI Chief of Staff, coordinates all cross-department operations from here.",
+    description: "Central command and intelligence tower. Maya, your AI CEO, runs the company and directs all departments from here.",
     purpose: "Orchestration, Strategic Intelligence, Morning Briefings",
     agents: [
-      { id:"maya",   name:"Maya",   role:"Chief Orchestrator",   status:"active",     mission:"Coordinating daily execution plan and cross-department orchestration", initials:"MA", hue:"#60a5fa" },
+      { id:"maya",   name:"Maya",   role:"AI CEO",   status:"active",     mission:"Running the company: strategy, executive decisions, and directing the leadership team", initials:"MA", hue:"#60a5fa" },
       { id:"neural", name:"Neural", role:"Knowledge Director",   status:"active",     mission:"Processing and categorising incoming memory entries in real time",      initials:"NR", hue:"#818cf8" },
       { id:"scout",  name:"Scout",  role:"Briefing Intelligence",status:"processing", mission:"Compiling market signals and risk alerts for morning brief",           initials:"SC", hue:"#a78bfa" },
     ],

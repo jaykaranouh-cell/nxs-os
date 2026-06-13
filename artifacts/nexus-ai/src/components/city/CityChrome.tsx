@@ -256,7 +256,7 @@ export function MayaCard() {
         </div>
         <div>
           <div className="text-[11px] font-black tracking-wide text-white/90">MAYA</div>
-          <div className="text-[7px] font-mono uppercase tracking-[0.2em] text-primary/70">AI Chief of Staff</div>
+          <div className="text-[7px] font-mono uppercase tracking-[0.2em] text-primary/70">AI CEO</div>
         </div>
       </div>
       <p className="text-[9px] text-white/40 mt-2 leading-relaxed">How can I help you win today?</p>

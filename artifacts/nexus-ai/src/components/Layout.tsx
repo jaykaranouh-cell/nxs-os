@@ -13,7 +13,7 @@ const NAV_SECTIONS = [
       { href: "/city", label: "NXS City", icon: Map, hint: "spatial command world" },
       { href: "/orchestrator", label: "Orchestrator", icon: MessageSquare, hint: "conversation" },
       { href: "/", label: "Command Centre", icon: LayoutDashboard, hint: "daily briefing" },
-      { href: "/morning-brief", label: "Morning Brief", icon: Newspaper, hint: "AI chief of staff" },
+      { href: "/morning-brief", label: "Morning Brief", icon: Newspaper, hint: "your AI CEO" },
     ],
   },
   {

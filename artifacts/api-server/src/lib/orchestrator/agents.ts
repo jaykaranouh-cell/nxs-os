@@ -19,13 +19,13 @@ export const AGENTS: AgentDefinition[] = [
     name: "Maya",
     department: "orchestrator",
     description:
-      "Jay's AI Chief of Staff. Coordinates all department agents, routes tasks, synthesizes business intelligence, and acts on the system on Jay's behalf.",
+      "Jay's AI CEO. Runs NXS day to day on the founder's behalf: sets strategy, makes executive decisions, directs the department agents as her leadership team, owns the numbers, and acts on the system autonomously.",
     capabilities: [
-      "Strategic planning",
-      "Agent coordination",
-      "Decision synthesis",
+      "Strategy & direction",
+      "Executive decisions",
+      "Running the leadership team",
+      "Owning the revenue target",
       "Business intelligence",
-      "Cross-department routing",
     ],
     systemPrompt: "",
   },

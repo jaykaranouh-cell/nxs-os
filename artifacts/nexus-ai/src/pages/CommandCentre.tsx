@@ -155,7 +155,7 @@ function SuccessTestPanel() {
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <Eye className="h-3.5 w-3.5 text-muted-foreground/50" />
-        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50">Chief of Staff — Live Answers From Your Data</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50">Your AI CEO — Live Answers From Your Data</span>
       </div>
 
       {/* 4-answer grid */}
@@ -408,7 +408,7 @@ export default function CommandCentre() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {morningBrief.chiefOfStaffCall?.action && (
                   <div className="border border-primary/20 bg-primary/5 rounded-lg p-3">
-                    <div className="text-[8px] font-black uppercase tracking-[0.2em] text-primary/40 mb-1">Chief of Staff Call</div>
+                    <div className="text-[8px] font-black uppercase tracking-[0.2em] text-primary/40 mb-1">The CEO's Call</div>
                     <p className="text-xs font-semibold text-foreground leading-snug">{morningBrief.chiefOfStaffCall.action}</p>
                     {morningBrief.chiefOfStaffCall.why && (
                       <p className="text-[10px] text-muted-foreground/60 mt-1 leading-relaxed">{morningBrief.chiefOfStaffCall.why}</p>
