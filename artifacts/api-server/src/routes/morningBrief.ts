@@ -25,7 +25,10 @@ const CONTEXT_KEYS = [
 ];
 
 function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+  // Local day, not UTC — so "today's brief" tracks Jay's actual morning
+  // (e.g. Sydney) rather than rolling over at UTC midnight.
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function safeNum(v: unknown): number {
@@ -240,6 +243,24 @@ Constraints:
   ]);
 
   return { ...brief, generatedAt: now, isFromCache: false };
+}
+
+/**
+ * Generate today's brief only if it hasn't been made yet (and it's past early
+ * morning). Returns the new brief when it generates one, else null. Used by the
+ * scheduler so the brief reliably appears each morning even if the Mac was
+ * asleep at 07:00 and the in-process cron never fired.
+ */
+export async function ensureTodaysBrief(): Promise<{ headline?: string } | null> {
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.OPENAI_API_KEY) return null;
+  if (new Date().getHours() < 5) return null; // too early to call it "this morning"
+  const row = await db.select().from(systemContextTable).where(eq(systemContextTable.key, CACHE_KEY)).then((r) => r[0]);
+  if (row) {
+    try {
+      if ((JSON.parse(row.value) as { date?: string }).date === todayKey()) return null; // already done today
+    } catch {}
+  }
+  return (await generateBrief()) as { headline?: string };
 }
 
 // GET /morning-brief

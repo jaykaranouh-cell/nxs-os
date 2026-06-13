@@ -8,7 +8,7 @@ import cron from "node-cron";
 import { db, memoryEntriesTable, agentTasksTable, ideasTable, agentMessagesTable } from "@workspace/db";
 import { and, desc, eq, gte, isNotNull, lt, or, sql } from "drizzle-orm";
 import { completeText } from "./orchestrator/llm";
-import { generateBrief } from "../routes/morningBrief";
+import { ensureTodaysBrief } from "../routes/morningBrief";
 import { DEPARTMENT_AGENTS } from "./orchestrator/agents";
 import { loadContext } from "./orchestrator/context";
 import { buildAgentBriefing } from "./orchestrator/prompts";
@@ -26,10 +26,13 @@ const hasLlmKey = () => Boolean(process.env.ANTHROPIC_API_KEY);
 
 async function morningBriefJob() {
   if (!hasLlmKey()) return;
-  const brief = await generateBrief();
-  logger.info("scheduler: morning brief generated");
-  const headline = (brief as { headline?: string }).headline;
-  if (headline) await notifyJay("Morning Brief ready", headline, { tags: ["sunrise"] });
+  // Generate only if today's brief doesn't exist yet — so the 07:00 cron and the
+  // recurring catch-up (which covers a Mac that was asleep at 7am) never double up.
+  const brief = await ensureTodaysBrief();
+  if (brief?.headline) {
+    logger.info("scheduler: morning brief generated");
+    await notifyJay("Morning Brief ready", brief.headline, { tags: ["sunrise"] });
+  }
 }
 
 // ─── 07:30 daily — risk watchdog: stale critical / needs-review items ────────
@@ -144,6 +147,9 @@ function safely(name: string, job: () => Promise<void>) {
 
 export function startScheduler(): void {
   cron.schedule("0 7 * * *", safely("morning-brief", morningBriefJob));
+  // Catch-up: if the Mac was asleep at 07:00, generate this morning's brief as
+  // soon as the machine is awake (idempotent — only generates once per day).
+  cron.schedule("*/20 * * * *", safely("morning-brief-catchup", morningBriefJob));
   cron.schedule("30 7 * * *", safely("risk-watchdog", riskWatchdogJob));
   cron.schedule("0 8 * * 1", safely("weekly-ideas", weeklyIdeasJob));
   // Maya's autonomous strategy sessions — she thinks and acts on her own
@@ -161,5 +167,6 @@ export function startScheduler(): void {
   cron.schedule("0 * * * *", safely("calendar", async () => { await ingestPastMeetings(); }));
   void safely("obsidian-sync", runObsidianSync)();
   void safely("embeddings", backfillEmbeddings)();
+  void safely("morning-brief-catchup", morningBriefJob)();
   logger.info("scheduler: jobs registered (brief 07:00, watchdog 07:30, ideas Mon 08:00, autonomy 09/13/17/21, obsidian */10m)");
 }
