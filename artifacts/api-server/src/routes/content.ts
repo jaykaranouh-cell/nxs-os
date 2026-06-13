@@ -6,7 +6,8 @@
 import { Router } from "express";
 import { db, contentDraftsTable, insertContentDraftSchema } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
-import { generateImage, higgsfieldReady, HiggsfieldNotReady } from "../lib/higgsfield";
+import { generateImage, generateVideo, higgsfieldReady, HiggsfieldNotReady, VIDEO_MODELS, GENERATED_DIR } from "../lib/higgsfield";
+import path from "node:path";
 
 const router = Router();
 
@@ -94,6 +95,49 @@ router.post("/content/drafts/:id/image", async (req, res) => {
       return;
     }
     res.status(502).json({ error: (err as Error).message || "Image generation failed" });
+  }
+});
+
+// GET /content/video-models — curated models for the picker
+router.get("/content/video-models", (_req, res) => {
+  res.json(VIDEO_MODELS);
+});
+
+// POST /content/drafts/:id/video  { model, mode: "image" | "text" }
+router.post("/content/drafts/:id/video", async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [draft] = await db.select().from(contentDraftsTable).where(eq(contentDraftsTable.id, id));
+  if (!draft) { res.status(404).json({ error: "Not found" }); return; }
+
+  const model = typeof req.body?.model === "string" ? req.body.model : "seedance_2_0";
+  const mode = req.body?.mode === "image" ? "image" : "text";
+
+  let startImagePath: string | undefined;
+  if (mode === "image") {
+    if (!draft.imageUrl) { res.status(400).json({ error: "Generate an image first to animate it." }); return; }
+    startImagePath = path.join(GENERATED_DIR, path.basename(draft.imageUrl));
+  }
+
+  const gist = draft.content.replace(/\s+/g, " ").slice(0, 200);
+  const prompt = mode === "image"
+    ? `Subtle cinematic motion, slow camera push-in, gentle parallax, professional and brand-safe. Scene context: ${gist}`
+    : `Short professional LinkedIn marketing video, modern minimal tech aesthetic, deep blue and cyan palette, cinematic lighting, no on-screen text. Concept: ${gist}`;
+
+  try {
+    const videoUrl = await generateVideo(prompt, { model, startImagePath }, `draft${id}`);
+    const [row] = await db
+      .update(contentDraftsTable)
+      .set({ videoUrl, videoModel: model })
+      .where(eq(contentDraftsTable.id, id))
+      .returning();
+    res.json(serialize(row));
+  } catch (err) {
+    if (err instanceof HiggsfieldNotReady) {
+      res.status(409).json({ error: err.message, code: "not_connected" });
+      return;
+    }
+    res.status(502).json({ error: (err as Error).message || "Video generation failed" });
   }
 });
 
