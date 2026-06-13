@@ -13,6 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Link, useSearch } from "wouter";
 import {
   Bot, Send, User, BrainCircuit, Loader2, Activity, Zap, Bell, Lock,
@@ -306,6 +307,9 @@ export default function Orchestrator() {
   const { data: agentStatus } = useGetMemoryAgentStatus();
   const { data: realAgents } = useListAgents();
   const { data: teamMessages } = useListAgentMessages({ query: { queryKey: getListAgentMessagesQueryKey(), refetchInterval: 15000 } });
+  type TeamMsg = NonNullable<typeof teamMessages>[number];
+  const [openMsg, setOpenMsg] = useState<TeamMsg | null>(null);
+  const toLabel = (id: string) => id === "all" ? "everyone" : id === "orchestrator" ? "Maya" : id === "jay" ? "Jay" : id;
   const { data: contextData } = useGetSystemContext();
   const { data: opps } = useListOpportunities({});
   const { data: decisions } = useListMemoryEntries({ category: "decisions" });
@@ -481,6 +485,27 @@ export default function Orchestrator() {
 
   return (
     <div className="h-full flex gap-4 overflow-hidden">
+      {/* Team Channel message reader */}
+      <Dialog open={!!openMsg} onOpenChange={(o) => !o && setOpenMsg(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <MessageSquare className="h-4 w-4 text-primary/70" />
+              {openMsg?.fromAgentName}
+              <span className="text-muted-foreground/60 font-normal">→ {openMsg ? toLabel(openMsg.toAgentId) : ""}</span>
+              {openMsg && (
+                <span className="ml-auto text-[10px] font-mono text-muted-foreground/40">
+                  {new Date(openMsg.createdAt).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })}
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[65vh] overflow-y-auto text-sm leading-relaxed text-foreground/85 whitespace-pre-line pr-1">
+            {openMsg?.content}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* ── MAIN CHAT ── */}
       <div className="flex-1 flex flex-col bg-card/50 border border-border/50 rounded-xl overflow-hidden shadow-2xl backdrop-blur-sm relative min-w-0">
         {/* Header */}
@@ -897,18 +922,23 @@ export default function Orchestrator() {
           <CardContent className="px-3 pb-3 space-y-2">
             {teamMessages && teamMessages.length > 0 ? (
               teamMessages.slice(0, 5).map((m) => (
-                <div key={m.id} className="rounded-lg border border-primary/10 bg-primary/[0.03] px-2.5 py-2">
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setOpenMsg(m)}
+                  className="w-full text-left rounded-lg border border-primary/10 bg-primary/[0.03] px-2.5 py-2 hover:bg-primary/[0.07] hover:border-primary/25 transition-colors cursor-pointer"
+                >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[10px] font-semibold text-foreground/80 truncate">
                       {m.fromAgentName}
-                      <span className="text-muted-foreground/50 font-normal"> → {m.toAgentId === "all" ? "everyone" : m.toAgentId === "orchestrator" ? "Maya" : m.toAgentId === "jay" ? "Jay" : m.toAgentId}</span>
+                      <span className="text-muted-foreground/50 font-normal"> → {toLabel(m.toAgentId)}</span>
                     </span>
                     <span className="text-[8px] text-muted-foreground/40 flex-shrink-0">
                       {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </span>
                   </div>
-                  <p className="text-[10px] text-muted-foreground/70 leading-relaxed mt-0.5 line-clamp-3 whitespace-pre-line">{m.content}</p>
-                </div>
+                  <p className="text-[10px] text-muted-foreground/70 leading-relaxed mt-0.5 line-clamp-2 whitespace-pre-line">{m.content}</p>
+                </button>
               ))
             ) : (
               <p className="text-[10px] text-muted-foreground/40 italic px-1">No team messages yet. Agents leave notes for each other here as they coordinate.</p>

@@ -280,15 +280,16 @@ function AskAgentComposer() {
         onChange={(e) => setTarget(e.target.value)}
         className="h-9 rounded-md bg-background border border-border/50 text-xs px-2 text-foreground flex-shrink-0"
       >
-        <option value="sales">Sales</option>
-        <option value="marketing">Marketing</option>
-        <option value="research">Research</option>
-        <option value="finance">Finance</option>
+        <option value="all">Whole team</option>
+        <option value="sales">Sales (Rex)</option>
+        <option value="marketing">Marketing (Echo)</option>
+        <option value="research">Research (Atlas)</option>
+        <option value="finance">Finance (Vera)</option>
       </select>
       <Input
         value={question}
         onChange={(e) => setQuestion(e.target.value)}
-        placeholder={ask.isPending ? "Agent is thinking..." : "Ask this agent directly..."}
+        placeholder={ask.isPending ? (target === "all" ? "The team is thinking..." : "Agent is thinking...") : target === "all" ? "Ask the whole team..." : "Ask this agent directly..."}
         className="h-9 text-xs"
         disabled={ask.isPending}
       />

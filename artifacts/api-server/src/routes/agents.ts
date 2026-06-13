@@ -61,17 +61,53 @@ router.get("/agents/activity/recent", async (req, res) => {
   res.json(logs.map(serializeLog));
 });
 
-// POST /agents/:agentId/ask — talk to a department agent directly
+// POST /agents/:agentId/ask — talk to a department agent directly,
+// or use agentId "all" to ask the whole team at once (group broadcast).
 router.post("/agents/:agentId/ask", async (req, res) => {
   const { agentId } = req.params;
-  const agent = AGENTS.find((a) => a.id === agentId && a.id !== "orchestrator");
-  if (!agent) {
-    res.status(404).json({ error: "Agent not found" });
-    return;
-  }
   const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
   if (!content) {
     res.status(400).json({ error: "content is required" });
+    return;
+  }
+
+  // ── Group broadcast: every department agent answers ──
+  if (agentId === "all") {
+    await sendAgentMessage("jay", "Jay", "all", content);
+    const ctx = await loadContext();
+    const briefing = buildAgentBriefing(ctx);
+    const depts = AGENTS.filter((a) => a.id !== "orchestrator");
+    const runs = await Promise.all(
+      depts.map((a) =>
+        runDepartmentAgent(
+          { agentId: a.id, task: `Jay is asking the whole team. Answer him personally and conversationally in your own voice, from your department's angle, and keep it tight: ${content}` },
+          briefing,
+          ""
+        ).catch(() => null)
+      )
+    );
+    const replies = [];
+    for (let i = 0; i < depts.length; i++) {
+      const run = runs[i];
+      if (!run) continue;
+      const [reply] = await db
+        .insert(msgTable)
+        .values({ fromAgentId: depts[i].id, fromAgentName: depts[i].name, toAgentId: "jay", content: run.findings })
+        .returning();
+      replies.push({ ...reply, createdAt: reply.createdAt.toISOString(), readAt: reply.readAt?.toISOString() ?? null });
+    }
+    if (!replies.length) {
+      res.status(502).json({ error: "No agents answered" });
+      return;
+    }
+    // Return one reply for client compatibility; all replies land in the mailbox.
+    res.json(replies[0]);
+    return;
+  }
+
+  const agent = AGENTS.find((a) => a.id === agentId && a.id !== "orchestrator");
+  if (!agent) {
+    res.status(404).json({ error: "Agent not found" });
     return;
   }
 
