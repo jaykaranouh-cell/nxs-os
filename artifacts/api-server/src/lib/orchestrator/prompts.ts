@@ -193,13 +193,18 @@ export interface SystemBlock {
 export function buildSystemBlocks(
   ctx: OrchestratorContext,
   runs: AgentRun[] = [],
-  extraGuidance?: string
+  extraGuidance?: string,
+  conversationSummary?: string
 ): SystemBlock[] {
   const sections: string[] = [];
 
   sections.push(
     `You are Maya — Jay's personal AI Chief of Staff and the orchestrator of NXS OS. You are direct, sharp, and strategic. You know Jay's business and life deeply because you have access to his real data loaded above. Never be vague. Always be specific, naming real items from the data.`
   );
+
+  if (conversationSummary) {
+    sections.push(`## Earlier Conversation Summary\n${conversationSummary}`);
+  }
 
   if (ctx.teamMessages.length) {
     sections.push(

@@ -5,8 +5,8 @@
  */
 
 import cron from "node-cron";
-import { db, memoryEntriesTable, agentTasksTable, ideasTable } from "@workspace/db";
-import { and, desc, eq, gte, lt, or, sql } from "drizzle-orm";
+import { db, memoryEntriesTable, agentTasksTable, ideasTable, agentMessagesTable } from "@workspace/db";
+import { and, desc, eq, gte, isNotNull, lt, or, sql } from "drizzle-orm";
 import { completeText } from "./orchestrator/llm";
 import { generateBrief } from "../routes/morningBrief";
 import { DEPARTMENT_AGENTS } from "./orchestrator/agents";
@@ -122,6 +122,17 @@ async function weeklyIdeasJob() {
   }
 }
 
+// ─── 04:00 daily — mailbox hygiene: read messages expire after 7 days ────────
+
+async function mailboxCleanupJob() {
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const deleted = await db
+    .delete(agentMessagesTable)
+    .where(and(isNotNull(agentMessagesTable.readAt), lt(agentMessagesTable.createdAt, cutoff)))
+    .returning({ id: agentMessagesTable.id });
+  if (deleted.length) logger.info({ count: deleted.length }, "scheduler: mailbox cleaned");
+}
+
 // ─── Wiring ───────────────────────────────────────────────────────────────────
 
 function safely(name: string, job: () => Promise<void>) {
@@ -134,6 +145,7 @@ export function startScheduler(): void {
   cron.schedule("0 8 * * 1", safely("weekly-ideas", weeklyIdeasJob));
   // 17:00 daily: Maya's autonomous growth strategy session
   cron.schedule("0 17 * * *", safely("growth-session", async () => { await runGrowthSession(); }));
+  cron.schedule("0 4 * * *", safely("mailbox-cleanup", mailboxCleanupJob));
   // Obsidian bridge: ingest inbox + mirror memory every 10 minutes, and once at boot
   cron.schedule("*/10 * * * *", safely("obsidian-sync", runObsidianSync));
   void safely("obsidian-sync", runObsidianSync)();

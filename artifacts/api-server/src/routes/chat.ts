@@ -25,6 +25,7 @@ import {
 } from "../lib/orchestrator/tools";
 import { recordUsage } from "../lib/orchestrator/telemetry";
 import { captureMemoryFromTurn } from "../lib/orchestrator/capture";
+import { loadConversationSummary, maybeCompactConversation } from "../lib/orchestrator/compaction";
 
 const router = Router();
 
@@ -41,12 +42,14 @@ interface TurnSetup {
   ctx: OrchestratorContext;
   history: ChatHistory;
   violation: string | null;
+  summary?: string;
 }
 
 async function setupTurn(content: string, userMsgId: number): Promise<TurnSetup> {
-  const [ctx, recentHistory] = await Promise.all([
+  const [ctx, recentHistory, compaction] = await Promise.all([
     loadContext(),
     db.select().from(chatMessagesTable).orderBy(desc(chatMessagesTable.timestamp)).limit(21),
+    loadConversationSummary(),
   ]);
 
   const history: ChatHistory = recentHistory
@@ -58,7 +61,7 @@ async function setupTurn(content: string, userMsgId: number): Promise<TurnSetup>
       content: m.content,
     }));
 
-  return { ctx, history, violation: checkRuleViolations(content, ctx) };
+  return { ctx, history, violation: checkRuleViolations(content, ctx), summary: compaction?.summary };
 }
 
 /**
@@ -182,7 +185,7 @@ router.post("/chat/messages", async (req, res) => {
     .values({ role: "user", content })
     .returning();
 
-  const { ctx, history, violation } = await setupTurn(content, userMsg.id);
+  const { ctx, history, violation, summary } = await setupTurn(content, userMsg.id);
 
   let response: string;
   let agentActions: AgentAction[];
@@ -195,7 +198,7 @@ router.post("/chat/messages", async (req, res) => {
       const runs = await runDispatches(await planDispatch(content), ctx, content);
       const tools = toolsForLevel(level);
       const { text, toolEvents } = await runSynthesis({
-        system: buildSystemBlocks(ctx, runs, tools.length ? TOOL_GUIDANCE : PROPOSE_ONLY_GUIDANCE),
+        system: buildSystemBlocks(ctx, runs, tools.length ? TOOL_GUIDANCE : PROPOSE_ONLY_GUIDANCE, summary),
         history,
         content,
         tools,
@@ -210,6 +213,7 @@ router.post("/chat/messages", async (req, res) => {
   }
 
   const orchMsg = await saveOrchestratorMessage(response, agentActions);
+  maybeCompactConversation();
   captureMemoryFromTurn(content, response, orchMsg.id, agentActions.filter((a) => a.action.startsWith("create_memory")).map((a) => a.result ?? ""));
 
   res.status(201).json({
@@ -240,7 +244,7 @@ router.post("/chat/stream", async (req, res) => {
   res.flushHeaders();
 
   try {
-    const { ctx, history, violation } = await setupTurn(content, userMsg.id);
+    const { ctx, history, violation, summary } = await setupTurn(content, userMsg.id);
 
     if (violation) {
       const actions = violationActions();
@@ -267,7 +271,7 @@ router.post("/chat/stream", async (req, res) => {
 
     const tools = toolsForLevel(level);
     const { text, toolEvents } = await runSynthesis({
-      system: buildSystemBlocks(ctx, runs, tools.length ? TOOL_GUIDANCE : PROPOSE_ONLY_GUIDANCE),
+      system: buildSystemBlocks(ctx, runs, tools.length ? TOOL_GUIDANCE : PROPOSE_ONLY_GUIDANCE, summary),
       history,
       content,
       tools,
@@ -277,6 +281,7 @@ router.post("/chat/stream", async (req, res) => {
 
     const actions = buildActions(runs, toolEvents);
     const orchMsg = await saveOrchestratorMessage(text || "No response generated.", actions);
+    maybeCompactConversation();
     captureMemoryFromTurn(content, text, orchMsg.id, toolEvents.filter((e) => e.tool === "create_memory_entry").map((e) => e.summary));
 
     sendEvent(res, { done: true, userMessageId: userMsg.id, messageId: orchMsg.id, agentActions: actions });
