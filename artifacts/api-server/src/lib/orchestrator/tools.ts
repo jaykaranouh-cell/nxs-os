@@ -24,6 +24,7 @@ import { DEPARTMENT_AGENTS, getAgent } from "./agents";
 import { runDepartmentAgent, sendAgentMessage } from "./dispatch";
 import { setAgentName } from "./roster";
 import { notifyJay } from "../notify";
+import { BROWSER_TOOL_DEFINITIONS, runBrowserTool, isBrowserTool } from "./browser";
 import { loadContext } from "./context";
 import { buildAgentBriefing } from "./prompts";
 import { completeText } from "./llm";
@@ -598,10 +599,14 @@ export const COMPUTER_TOOL_DEFINITIONS: Anthropic.Tool[] = COMPUTER_TOOLS.map((t
 const BASE_TOOLS = [createMemoryEntry, updateLeadStage, createAgentTask, logIdea, updateOpportunity, createOpportunity, dispatchAgent, spawnAgent, messageTeam, nameAgent, notifyJayTool];
 const TOOLS = [...BASE_TOOLS, ...COMPUTER_TOOLS];
 
-export const TOOL_DEFINITIONS: Anthropic.Tool[] = BASE_TOOLS.map((t) => t.definition);
+export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
+  ...BASE_TOOLS.map((t) => t.definition),
+  ...BROWSER_TOOL_DEFINITIONS,
+];
 
 /** Execute one tool call. Returns the result string (or throws). */
 export async function executeTool(name: string, input: unknown): Promise<string> {
+  if (isBrowserTool(name)) return runBrowserTool(name, input);
   const tool = TOOLS.find((t) => t.definition.name === name);
   if (!tool) throw new Error(`Unknown tool "${name}"`);
   // Each tool's run is typed against its own schema; parse narrows accordingly.
@@ -610,7 +615,7 @@ export async function executeTool(name: string, input: unknown): Promise<string>
 }
 
 export const TOOL_GUIDANCE = `## Taking Action
-You can act on the system directly with your tools (save memory, move leads, create tasks, log ideas, update opportunities). When Jay reports something that changes the state of the business, record it with the appropriate tool rather than only describing what he should do. Use write tools sparingly and precisely — only for real state changes, never speculatively. You also command your own team: dispatch_agent sends a department agent (sales, marketing, research, finance) to investigate, and spawn_agent creates a one-off specialist with instructions you write. Use them when a question deserves dedicated analysis you don't have; integrate their reports into your answer and credit them. If you also have computer tools (open apps, open the browser, fetch webpages), they act on Jay's actual Mac: use them when Jay asks or when showing him something beats describing it.`;
+You can act on the system directly with your tools (save memory, move leads, create tasks, log ideas, update opportunities). When Jay reports something that changes the state of the business, record it with the appropriate tool rather than only describing what he should do. Use write tools sparingly and precisely — only for real state changes, never speculatively. You also command your own team: dispatch_agent sends a department agent (sales, marketing, research, finance) to investigate, and spawn_agent creates a one-off specialist with instructions you write. Use them when a question deserves dedicated analysis you don't have; integrate their reports into your answer and credit them. You and your agents have a real web browser: web_search finds information and browse_page reads any page's rendered content (read-only — you cannot click or submit). Use them to research prospects, competitors, pricing, and current facts instead of guessing. If you also have computer tools (open apps, open the browser on Jay's screen), they act on Jay's actual Mac: use them when showing him something beats describing it.`;
 
 export const PROPOSE_ONLY_GUIDANCE = `## Proposing Action (manual approval mode)
 You cannot execute changes right now — Jay has execution set to manual approval. When the conversation implies a state change (a memory worth saving, a lead to move, a task to create), end your Next Move with the specific action you WOULD take, phrased so Jay can approve it.`;

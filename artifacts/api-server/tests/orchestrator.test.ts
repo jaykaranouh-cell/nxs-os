@@ -112,6 +112,8 @@ describe("tools", () => {
     expect(names).toContain("update_lead_stage");
     expect(names).toContain("dispatch_agent");
     expect(names).toContain("spawn_agent");
+    expect(names).toContain("web_search");
+    expect(names).toContain("browse_page");
   });
 
   it("agent tools validate before any LLM or DB work", async () => {

@@ -7,6 +7,7 @@ import { logger } from "../logger";
 import { completeText } from "./llm";
 import { DEPARTMENT_AGENTS, getAgent, type AgentDefinition } from "./agents";
 import { displayName } from "./roster";
+import { BROWSER_TOOL_DEFINITIONS, runBrowserTool, isBrowserTool } from "./browser";
 import type { OrchestratorContext } from "./context";
 import { buildAgentBriefing } from "./prompts";
 
@@ -113,7 +114,7 @@ export async function sendAgentMessage(
   });
 }
 
-const MAX_AGENT_ROUNDS = 3;
+const MAX_AGENT_ROUNDS = 6;
 
 function agentCommTools(selfId: string): Anthropic.Tool[] {
   const others = DEPARTMENT_AGENTS.map((a) => a.id).filter((id) => id !== selfId);
@@ -144,6 +145,7 @@ function agentCommTools(selfId: string): Anthropic.Tool[] {
         required: ["to", "content"],
       },
     },
+    ...BROWSER_TOOL_DEFINITIONS,
   ];
 }
 
@@ -201,11 +203,11 @@ export async function runDepartmentAgent(
       const tools = agentCommTools(agent.id);
       const messages: Anthropic.MessageParam[] = [{ role: "user", content: user }];
       findings = "";
+      let answered = false;
       for (let round = 0; round < MAX_AGENT_ROUNDS; round++) {
         const response = await anthropic.messages.create({
           model,
           max_tokens: 4000,
-          thinking: { type: "adaptive" },
           system: [
             { type: "text", text: briefing, cache_control: { type: "ephemeral" } },
             {
@@ -213,19 +215,23 @@ export async function runDepartmentAgent(
               text:
                 agent.systemPrompt +
                 mailbox +
-                "\n\nYou can consult teammates with ask_agent and leave notes with send_message. Consult at most one teammate, only when their domain materially changes your answer.",
+                "\n\nYou can consult teammates with ask_agent, leave notes with send_message, and use the web: web_search to find information and browse_page to read any page (read-only). Research the real web when it sharpens your findings. Consult at most one teammate, only when their domain materially changes your answer.",
             },
           ],
           messages,
           tools,
         });
         recordUsage(`agent:${agent.id}`, model, response.usage);
-        findings = response.content
-          .filter((b): b is Anthropic.TextBlock => b.type === "text")
-          .map((b) => b.text)
-          .join("")
-          .trim();
-        if (response.stop_reason !== "tool_use") break;
+        // Only a non-tool round is the real answer; ignore mid-browse preambles.
+        if (response.stop_reason !== "tool_use") {
+          findings = response.content
+            .filter((b): b is Anthropic.TextBlock => b.type === "text")
+            .map((b) => b.text)
+            .join("")
+            .trim();
+          answered = true;
+          break;
+        }
 
         messages.push({ role: "assistant", content: response.content });
         const results: Anthropic.ToolResultBlockParam[] = [];
@@ -255,6 +261,9 @@ export async function runDepartmentAgent(
               const input = block.input as { to: string; content: string };
               await sendAgentMessage(agent.id, agent.name, input.to, input.content);
               results.push({ type: "tool_result", tool_use_id: block.id, content: `Message left for ${input.to}` });
+            } else if (isBrowserTool(block.name)) {
+              const out = await runBrowserTool(block.name, block.input);
+              results.push({ type: "tool_result", tool_use_id: block.id, content: out });
             } else {
               results.push({ type: "tool_result", tool_use_id: block.id, content: "Unknown tool", is_error: true });
             }
@@ -268,6 +277,33 @@ export async function runDepartmentAgent(
           }
         }
         messages.push({ role: "user", content: results });
+      }
+
+      if (!answered || !findings.trim()) {
+        const finalResp = await anthropic.messages.create({
+          model,
+          max_tokens: 2000,
+          system: [
+            { type: "text", text: briefing, cache_control: { type: "ephemeral" } },
+            { type: "text", text: agent.systemPrompt },
+          ],
+          messages: [
+            ...messages,
+            { role: "user", content: "Stop researching. Based on everything you found above, write your final answer to Jay now, in plain text." },
+          ],
+        });
+        recordUsage(`agent:${agent.id}`, model, finalResp.usage);
+        findings = finalResp.content
+          .filter((b): b is Anthropic.TextBlock => b.type === "text")
+          .map((b) => b.text)
+          .join("")
+          .trim();
+        if (!findings) {
+          logger.warn(
+            { agent: agent.id, stop: finalResp.stop_reason, blocks: finalResp.content.map((b) => b.type) },
+            "agent forced-final returned no text"
+          );
+        }
       }
     }
 
