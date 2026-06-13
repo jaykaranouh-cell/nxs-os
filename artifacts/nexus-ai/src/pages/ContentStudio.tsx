@@ -136,31 +136,36 @@ function DraftCard({ draft, onChanged }: { draft: Draft; onChanged: () => void }
         </div>
       )}
 
-      {!posted && (
-        <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-white/8">
+      <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-white/8">
+        {!posted && (
           <Button size="sm" onClick={post} className="h-8 gap-1.5 bg-[#0a66c2] hover:bg-[#0a66c2]/85 text-white">
             {copied ? <Check className="h-3.5 w-3.5" /> : <ExternalLink className="h-3.5 w-3.5" />}
             {copied ? "Copied — paste & post" : "Copy & open LinkedIn"}
           </Button>
-          <Button size="sm" variant="outline" disabled={genLoading} onClick={genImage}
-            className="h-8 gap-1.5 border-primary/25 text-primary/80 hover:bg-primary/10">
-            {genLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : draft.imageUrl ? <Wand2 className="h-3.5 w-3.5" /> : <ImageIcon className="h-3.5 w-3.5" />}
-            {draft.imageUrl ? "Regenerate image" : "Generate image"}
-          </Button>
+        )}
+        {/* Image generation is available on every draft, posted or not */}
+        <Button size="sm" variant="outline" disabled={genLoading} onClick={genImage}
+          className="h-8 gap-1.5 border-primary/25 text-primary/80 hover:bg-primary/10">
+          {genLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : draft.imageUrl ? <Wand2 className="h-3.5 w-3.5" /> : <ImageIcon className="h-3.5 w-3.5" />}
+          {draft.imageUrl ? "Regenerate image" : "Generate image"}
+        </Button>
+        {!posted && (
           <Button size="sm" variant="outline" className="h-8 gap-1.5 border-white/15 text-white/60"
             onClick={async () => { try { await navigator.clipboard.writeText(draft.content); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch {} }}>
             <Copy className="h-3.5 w-3.5" /> Copy
           </Button>
+        )}
+        {!posted && (
           <Button size="sm" variant="outline" className="h-8 gap-1.5 border-green-400/25 text-green-400/80 hover:bg-green-400/10"
             onClick={async () => { await api.markPosted(draft.id); onChanged(); }}>
             <Check className="h-3.5 w-3.5" /> Mark posted
           </Button>
-          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-white/30 hover:text-red-400 ml-auto"
-            onClick={async () => { await api.remove(draft.id); onChanged(); }}>
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      )}
+        )}
+        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-white/30 hover:text-red-400 ml-auto"
+          onClick={async () => { await api.remove(draft.id); onChanged(); }}>
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </div>
     </div>
   );
 }
