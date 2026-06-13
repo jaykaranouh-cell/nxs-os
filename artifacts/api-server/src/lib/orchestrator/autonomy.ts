@@ -15,7 +15,10 @@ import { logger } from "../logger";
 import { notifyJay } from "../notify";
 
 const LAST_RUN_KEY = "autonomy-last-run";
-const MIN_HOURS_BETWEEN = 18;
+// How close two autonomous sessions may run. Kept short so Maya can think
+// several times a day; the daily spend ceiling (NXS_DAILY_BUDGET_USD) is the
+// real backstop against runaway cost.
+const MIN_HOURS_BETWEEN = 3;
 
 const SESSION_DIRECTIVE = `This is your scheduled autonomous strategy session. Jay is not here; you are working on his behalf.
 

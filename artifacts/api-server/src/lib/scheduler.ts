@@ -146,8 +146,12 @@ export function startScheduler(): void {
   cron.schedule("0 7 * * *", safely("morning-brief", morningBriefJob));
   cron.schedule("30 7 * * *", safely("risk-watchdog", riskWatchdogJob));
   cron.schedule("0 8 * * 1", safely("weekly-ideas", weeklyIdeasJob));
-  // 17:00 daily: Maya's autonomous growth strategy session
-  cron.schedule("0 17 * * *", safely("growth-session", async () => { await runGrowthSession(); }));
+  // Maya's autonomous strategy sessions — she thinks and acts on her own
+  // several times across the working day (throttled to ~3h apart in autonomy.ts,
+  // capped by the daily spend ceiling).
+  for (const hour of [9, 13, 17, 21]) {
+    cron.schedule(`0 ${hour} * * *`, safely(`autonomy-${hour}`, async () => { await runGrowthSession(); }));
+  }
   cron.schedule("0 4 * * *", safely("mailbox-cleanup", mailboxCleanupJob));
   // Sunday 05:00: archive near-duplicate memories
   cron.schedule("0 5 * * 0", safely("memory-gardener", async () => { await runMemoryGardener(); }));
@@ -157,5 +161,5 @@ export function startScheduler(): void {
   cron.schedule("0 * * * *", safely("calendar", async () => { await ingestPastMeetings(); }));
   void safely("obsidian-sync", runObsidianSync)();
   void safely("embeddings", backfillEmbeddings)();
-  logger.info("scheduler: jobs registered (brief 07:00, watchdog 07:30, ideas Mon 08:00, growth 17:00, obsidian */10m)");
+  logger.info("scheduler: jobs registered (brief 07:00, watchdog 07:30, ideas Mon 08:00, autonomy 09/13/17/21, obsidian */10m)");
 }
