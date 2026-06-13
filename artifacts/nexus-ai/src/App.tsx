@@ -18,6 +18,7 @@ import KPILayer from "@/pages/KPILayer";
 import BusinessSetup from "@/pages/BusinessSetup";
 import MorningBrief from "@/pages/MorningBrief";
 import NXSCity from "@/pages/NXSCity";
+import ContentStudio from "@/pages/ContentStudio";
 import NotFound from "@/pages/not-found";
 
 initAuth();
@@ -41,6 +42,7 @@ function Router() {
         <Route path="/setup" component={BusinessSetup} />
         <Route path="/morning-brief" component={MorningBrief} />
         <Route path="/city" component={NXSCity} />
+        <Route path="/content" component={ContentStudio} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

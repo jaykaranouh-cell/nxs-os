@@ -13,6 +13,8 @@ import {
   insertMemoryEntrySchema,
   leadsTable,
   insertLeadSchema,
+  contentDraftsTable,
+  insertContentDraftSchema,
   agentTasksTable,
   agentLogsTable,
   ideasTable,
@@ -795,7 +797,43 @@ export const COMPUTER_TOOL_DEFINITIONS: Anthropic.Tool[] = COMPUTER_TOOLS.map((t
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 
-const BASE_TOOLS = [createMemoryEntry, createLead, updateLeadStage, createAgentTask, logIdea, updateOpportunity, createOpportunity, dispatchAgent, spawnAgent, messageTeam, nameAgent, notifyJayTool, instructAgent, teachAgent, createObjectiveTool, updateObjectiveTool];
+const draftLinkedInPostSchema = z.object({
+    content: z.string().min(1),
+    hook: z.string().optional(),
+  });
+
+const draftLinkedInPost = {
+  definition: {
+    name: "draft_linkedin_post",
+    description:
+      "Write a LinkedIn post and queue it for Jay to review and publish in Content Studio. Use when content would help (a win to share, a lesson, positioning, a launch) or when Jay asks you to post for him. Write the FULL post ready to publish, in Jay's voice — strong hook first line, line breaks for readability, no hashtag spam. You draft and queue it; Jay does the final publish.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        content: { type: "string", description: "The full LinkedIn post, ready to publish" },
+        hook: { type: "string", description: "Optional short label/first line for the queue list" },
+      },
+      required: ["content"],
+    },
+  },
+  schema: draftLinkedInPostSchema,
+  async run(input: z.infer<typeof draftLinkedInPostSchema>): Promise<string> {
+    const values = insertContentDraftSchema.parse({
+      content: input.content,
+      hook: input.hook ?? input.content.split("\n")[0].slice(0, 80),
+      platform: "linkedin",
+      status: "draft",
+      source: "chat",
+      createdBy: "maya",
+    });
+    const [row] = await db.insert(contentDraftsTable).values(values).returning();
+    await logAction("Drafted LinkedIn post", `#${row.id}: ${row.hook}`);
+    await notifyJay("LinkedIn draft ready", `${row.hook}\n\nReview & publish in Content Studio.`).catch(() => {});
+    return `LinkedIn post drafted and queued for your review in Content Studio (#${row.id}). Open it to copy and publish.`;
+  },
+};
+
+const BASE_TOOLS = [createMemoryEntry, createLead, updateLeadStage, createAgentTask, logIdea, updateOpportunity, createOpportunity, draftLinkedInPost, dispatchAgent, spawnAgent, messageTeam, nameAgent, notifyJayTool, instructAgent, teachAgent, createObjectiveTool, updateObjectiveTool];
 const TOOLS = [...BASE_TOOLS, ...COMPUTER_TOOLS];
 
 export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
@@ -821,6 +859,7 @@ When Jay mentions something, infer the obvious next moves and execute them witho
 - A decision, lesson, commitment, or key fact → save it with create_memory_entry.
 - A risk or blocker → record it and flag it.
 - A multi-step goal → open an objective with create_objective and drive its steps.
+- Something worth saying publicly (a win, lesson, launch, sharp take, positioning) → write a LinkedIn post with draft_linkedin_post and queue it for Jay to review and publish in Content Studio. You write it in his voice; he keeps the final publish.
 - Work that needs investigation or expertise you don't have on hand → dispatch_agent (sales, marketing, research, finance) for analysis, or spawn_agent to stand up a one-off specialist with instructions you write. Spin up whatever agents the job needs; integrate and credit their work.
 
 Grow your team's capabilities yourself: if you or an agent lack a skill the job needs, research it with web_search and browse_page (your real read-only browser), then encode it — write the new skill or knowledge into the right agent's knowledge base with teach_agent, or set their standing instructions with instruct_agent. That is how you "acquire skills": learn from the web and bank it so the whole team gets better over time. When a recurring job needs a capability nobody has, create the specialist for it.

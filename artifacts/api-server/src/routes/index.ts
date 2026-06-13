@@ -17,6 +17,7 @@ import homeRouter from "./home";
 import agentProfileRouter from "./agentProfile";
 import actionsRouter from "./actions";
 import objectivesRouter from "./objectives";
+import contentRouter from "./content";
 
 const router: IRouter = Router();
 
@@ -38,5 +39,6 @@ router.use(homeRouter);
 router.use(agentProfileRouter);
 router.use(actionsRouter);
 router.use(objectivesRouter);
+router.use(contentRouter);
 
 export default router;

@@ -11,3 +11,4 @@ export * from "./usage";
 export * from "./agentKb";
 export * from "./reversible";
 export * from "./objectives";
+export * from "./content";
