@@ -210,7 +210,7 @@ function CoreAgentCard({ agent, execLevel, onExecChange }: {
   );
 }
 
-function DeptModeCard({ mode, onToggle, onProfile }: { mode: DeptMode; onToggle: (id: string) => void; onProfile: (id: string, name: string) => void }) {
+function DeptModeCard({ mode, agentName, onToggle, onProfile }: { mode: DeptMode; agentName?: string; onToggle: (id: string) => void; onProfile: (id: string, name: string) => void }) {
   const ac = ACCENT_COLORS[mode.accent];
   const ModeIcon = mode.icon;
 
@@ -218,9 +218,14 @@ function DeptModeCard({ mode, onToggle, onProfile }: { mode: DeptMode; onToggle:
     <Card className={`border ${mode.active ? ac.border : "border-border/30"} ${mode.active ? ac.bg : "bg-card/30"} overflow-hidden transition-all`}>
       <CardContent className="p-3">
         <div className="flex items-start justify-between gap-2 mb-2">
-          <div className="flex items-center gap-2">
-            <ModeIcon className={`h-4 w-4 ${mode.active ? ac.text : "text-muted-foreground/40"}`} />
-            <span className={`text-sm font-semibold ${mode.active ? "text-foreground" : "text-muted-foreground/60"}`}>{mode.name}</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <ModeIcon className={`h-4 w-4 flex-shrink-0 ${mode.active ? ac.text : "text-muted-foreground/40"}`} />
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className={`text-sm font-semibold ${mode.active ? "text-foreground" : "text-muted-foreground/60"}`}>{agentName ?? mode.name}</span>
+                {agentName && <span className={`text-[8px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${mode.active ? `${ac.text} ${ac.border}` : "text-muted-foreground/40 border-border/30"}`}>{mode.name.replace(/ Mode$/, "")}</span>}
+              </div>
+            </div>
           </div>
           <button
             onClick={() => onToggle(mode.id)}
@@ -236,7 +241,7 @@ function DeptModeCard({ mode, onToggle, onProfile }: { mode: DeptMode; onToggle:
             <span className="text-[9px] text-muted-foreground/50">Last dispatch: {mode.lastDispatch}</span>
           </div>
           <button
-            onClick={() => onProfile(mode.id, mode.name.replace(/ Mode$/, ""))}
+            onClick={() => onProfile(mode.id, agentName ?? mode.name.replace(/ Mode$/, ""))}
             className="text-[9px] px-2 py-0.5 rounded-full border border-primary/25 text-primary/70 hover:bg-primary/10 transition-colors flex items-center gap-1"
           >
             <Brain className="h-2.5 w-2.5" /> Profile
@@ -302,6 +307,8 @@ export default function Agents() {
   const [deptModes, setDeptModes] = useState(DEPT_MODES);
   const [profileAgent, setProfileAgent] = useState<{ id: string; name: string } | null>(null);
   const { data: recentActivity, isLoading: activityLoading } = useGetRecentAgentActivity();
+  const { data: realAgents } = useListAgents();
+  const nameById = Object.fromEntries((realAgents ?? []).map((a) => [a.id, a.name]));
   const { data: teamMessages } = useListAgentMessages();
 
   useEffect(() => {
@@ -424,7 +431,7 @@ export default function Agents() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {deptModes.map((mode) => (
-            <DeptModeCard key={mode.id} mode={mode} onToggle={toggleDeptMode} onProfile={(id, name) => setProfileAgent({ id, name })} />
+            <DeptModeCard key={mode.id} mode={mode} agentName={nameById[mode.id]} onToggle={toggleDeptMode} onProfile={(id, name) => setProfileAgent({ id, name })} />
           ))}
         </div>
       </div>
