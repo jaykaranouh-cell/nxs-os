@@ -25,6 +25,9 @@ import {
 } from "../lib/orchestrator/tools";
 import { recordUsage } from "../lib/orchestrator/telemetry";
 import { saveAttachment, type IncomingAttachment, type StoredAttachment } from "../lib/uploads";
+import { openai } from "@workspace/integrations-openai-ai-server";
+import { gemini, geminiReady } from "../lib/gemini";
+import { CHAT_MODELS, resolveChatModel } from "../lib/orchestrator/models";
 import { assertWithinBudget, BudgetExceededError } from "../lib/orchestrator/budget";
 import { captureMemoryFromTurn } from "../lib/orchestrator/capture";
 import { loadConversationSummary, maybeCompactConversation } from "../lib/orchestrator/compaction";
@@ -92,6 +95,7 @@ export async function runSynthesis(opts: {
   content: string;
   tools: typeof TOOL_DEFINITIONS;
   scope?: string;
+  model?: string;
   attachments?: IncomingAttachment[];
   onText?: (delta: string) => void;
   onAction?: (event: ToolEvent & { error?: boolean }) => void;
@@ -109,7 +113,7 @@ export async function runSynthesis(opts: {
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const stream = anthropic.messages.stream({
-      model: CLAUDE_MODEL,
+      model: opts.model ?? CLAUDE_MODEL,
       max_tokens: 16000,
       thinking: { type: "adaptive" },
       system: opts.system,
@@ -125,7 +129,7 @@ export async function runSynthesis(opts: {
     }
 
     const final = await stream.finalMessage();
-    recordUsage(opts.scope ?? "synthesis", CLAUDE_MODEL, final.usage);
+    recordUsage(opts.scope ?? "synthesis", opts.model ?? CLAUDE_MODEL, final.usage);
 
     if (final.stop_reason !== "tool_use") break;
 
@@ -183,6 +187,14 @@ function parseLevel(level: string | undefined): ExecutionLevel {
 }
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
+
+// GET /chat/models — selectable brains + whether each is available (has its key)
+router.get("/chat/models", (_req, res) => {
+  res.json(CHAT_MODELS.map((m) => ({
+    id: m.id, label: m.label, provider: m.provider, agentic: m.agentic,
+    available: m.provider === "anthropic" ? true : m.provider === "openai" ? !!process.env.OPENAI_API_KEY : geminiReady(),
+  })));
+});
 
 router.get("/chat/messages", async (req, res) => {
   const limit = parseInt((req.query.limit as string) ?? "100");
@@ -251,6 +263,72 @@ router.post("/chat/messages", async (req, res) => {
   });
 });
 
+/**
+ * Conversational reply from a non-Claude brain (Gemini / GPT). Streams text
+ * only — no tools/actions (those are Claude-specific). Sees the same context,
+ * history, and image attachments.
+ */
+async function runConversational(opts: {
+  provider: "openai" | "google";
+  model: string;
+  system: ReturnType<typeof buildSystemBlocks>;
+  history: ChatHistory;
+  content: string;
+  attachments?: IncomingAttachment[];
+  onText: (delta: string) => void;
+}): Promise<string> {
+  await assertWithinBudget();
+  const note = "\n\nYou are answering in CONVERSATIONAL mode on a non-Claude model: advise, analyse, draft, and reason over Jay's data, but you cannot take actions or use tools here (Jay can switch to a Claude model for that). Be direct and specific.";
+  const systemText = opts.system.map((b) => b.text).join("\n\n") + note;
+  const atts = opts.attachments ?? [];
+  const images = atts.filter((a) => a.kind === "image");
+  let userText = opts.content;
+  for (const t of atts.filter((a) => a.kind === "text")) {
+    userText += `\n\nAttached file "${t.name}":\n${Buffer.from(t.data, "base64").toString("utf8").slice(0, 100_000)}`;
+  }
+  const pdfs = atts.filter((a) => a.kind === "pdf");
+  if (pdfs.length) userText += `\n\n[${pdfs.length} PDF(s) attached — switch to a Claude model to read PDFs.]`;
+  let text = "";
+
+  if (opts.provider === "openai") {
+    const userContent = images.length
+      ? [
+          { type: "text", text: userText },
+          ...images.map((im) => ({ type: "image_url", image_url: { url: `data:${im.mediaType};base64,${im.data}` } })),
+        ]
+      : userText;
+    const stream = await openai.chat.completions.create({
+      model: opts.model,
+      stream: true,
+      max_tokens: 4000,
+      messages: [
+        { role: "system", content: systemText },
+        ...opts.history.map((h) => ({ role: h.role, content: h.content })),
+        { role: "user", content: userContent },
+      ] as never,
+    });
+    for await (const chunk of stream as AsyncIterable<{ choices?: Array<{ delta?: { content?: string } }> }>) {
+      const d = chunk.choices?.[0]?.delta?.content;
+      if (d) { text += d; opts.onText(d); }
+    }
+  } else {
+    const contents = [
+      ...opts.history.map((h) => ({ role: h.role === "assistant" ? "model" : "user", parts: [{ text: h.content }] })),
+      { role: "user", parts: [{ text: userText }, ...images.map((im) => ({ inlineData: { mimeType: im.mediaType, data: im.data } }))] },
+    ];
+    const resp = await gemini().models.generateContentStream({
+      model: opts.model,
+      contents: contents as never,
+      config: { systemInstruction: systemText },
+    });
+    for await (const chunk of resp) {
+      const t = chunk.text;
+      if (t) { text += t; opts.onText(t); }
+    }
+  }
+  return text;
+}
+
 /** Read + sanitise attachments from a chat request body (max 6). */
 function parseIncomingAttachments(body: unknown): IncomingAttachment[] {
   const raw = (body as { attachments?: unknown })?.attachments;
@@ -304,6 +382,32 @@ router.post("/chat/stream", async (req, res) => {
       return;
     }
 
+    // ── Non-Claude conversational brains (Gemini / GPT) ──
+    const chat = resolveChatModel(typeof req.body?.model === "string" ? req.body.model : undefined);
+    if (!chat.agentic) {
+      if (chat.provider === "google" && !geminiReady()) {
+        const m = "Gemini isn't connected yet. Add GEMINI_API_KEY to enable it, or switch to Claude or GPT.";
+        const orchMsg = await saveOrchestratorMessage(m, []);
+        streamText(res, m);
+        sendEvent(res, { done: true, userMessageId: userMsg.id, messageId: orchMsg.id, agentActions: [] });
+        res.end();
+        return;
+      }
+      const text = await runConversational({
+        provider: chat.provider as "openai" | "google",
+        model: chat.model,
+        system: buildSystemBlocks(ctx, [], undefined, summary),
+        history,
+        content,
+        attachments: incoming,
+        onText: (delta) => sendEvent(res, { content: delta }),
+      });
+      const orchMsg = await saveOrchestratorMessage(text || "No response generated.", []);
+      sendEvent(res, { done: true, userMessageId: userMsg.id, messageId: orchMsg.id, agentActions: [] });
+      res.end();
+      return;
+    }
+
     const dispatches = await planDispatch(content);
     if (dispatches.length) {
       sendEvent(res, {
@@ -324,6 +428,7 @@ router.post("/chat/stream", async (req, res) => {
       history,
       content,
       tools,
+      model: chat.model,
       attachments: incoming,
       onText: (delta) => sendEvent(res, { content: delta }),
       onAction: (event) => sendEvent(res, { action: event }),

@@ -318,6 +318,8 @@ function AttachmentView({ items }: { items?: Attachment[] | null }) {
 export default function Orchestrator() {
   const [input, setInput] = useState("");
   const [execLevel, setExecLevel] = useState<ExecLevel>("amber");
+  const [chatModel, setChatModel] = useState<string>(() => localStorage.getItem("nxs-chat-model") || "claude-opus");
+  const [chatModels, setChatModels] = useState<Array<{ id: string; label: string; provider: string; agentic: boolean; available: boolean }>>([]);
   const queryClient = useQueryClient();
   const { data: messages, isLoading } = useListChatMessages({ limit: 50 });
   const { data: briefing } = useGetMemoryBriefing();
@@ -356,6 +358,16 @@ export default function Orchestrator() {
     const saved = localStorage.getItem("nexus-exec-level") as ExecLevel | null;
     if (saved) setExecLevel(saved);
   }, []);
+
+  useEffect(() => {
+    fetch("/api/chat/models", { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list) => setChatModels(list))
+      .catch(() => {});
+  }, []);
+
+  const setModel = (id: string) => { setChatModel(id); localStorage.setItem("nxs-chat-model", id); };
+  const activeModel = chatModels.find((m) => m.id === chatModel);
 
   useEffect(() => {
     // Radix ScrollArea scrolls in its inner viewport, not the root element.
@@ -446,6 +458,7 @@ export default function Orchestrator() {
         body: JSON.stringify({
           content: msg,
           executionLevel: execLevel,
+          model: chatModel,
           attachments: files.map((f) => ({ kind: f.kind, mediaType: f.mediaType, data: f.data, name: f.name })),
         }),
       });
@@ -607,6 +620,28 @@ export default function Orchestrator() {
                 <TooltipContent className="text-xs">Add context to Memory</TooltipContent>
               </Tooltip>
             </ContextIntakeModal>
+            {/* Model picker */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <select
+                  value={chatModel}
+                  onChange={(e) => setModel(e.target.value)}
+                  className="h-[26px] rounded-md bg-background border border-border/40 text-[9px] font-mono px-1.5 text-foreground/80 max-w-[110px] focus:border-primary/50"
+                >
+                  {chatModels.length === 0 && <option value="claude-opus">Claude Opus</option>}
+                  {chatModels.map((m) => (
+                    <option key={m.id} value={m.id} disabled={!m.available}>
+                      {m.label}{!m.agentic ? " · chat" : ""}{!m.available ? " (no key)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </TooltipTrigger>
+              <TooltipContent className="text-xs max-w-[220px]">
+                {activeModel?.agentic === false
+                  ? `${activeModel?.label}: conversational — answers over your data but can't take actions. Switch to a Claude model for actions.`
+                  : "The brain Maya uses. Claude models take actions; Gemini/GPT are conversational."}
+              </TooltipContent>
+            </Tooltip>
             <div className="flex gap-1">
               {(["green", "amber", "red"] as ExecLevel[]).map((lev) => {
                 const lc = EXEC_CONFIG[lev];
