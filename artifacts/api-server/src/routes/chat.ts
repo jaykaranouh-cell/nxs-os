@@ -393,15 +393,25 @@ router.post("/chat/stream", async (req, res) => {
         res.end();
         return;
       }
-      const text = await runConversational({
-        provider: chat.provider as "openai" | "google",
-        model: chat.model,
-        system: buildSystemBlocks(ctx, [], undefined, summary),
-        history,
-        content,
-        attachments: incoming,
-        onText: (delta) => sendEvent(res, { content: delta }),
-      });
+      let text = "";
+      try {
+        text = await runConversational({
+          provider: chat.provider as "openai" | "google",
+          model: chat.model,
+          system: buildSystemBlocks(ctx, [], undefined, summary),
+          history,
+          content,
+          attachments: incoming,
+          onText: (delta) => { text += delta; sendEvent(res, { content: delta }); },
+        });
+      } catch (e) {
+        const raw = String((e as Error)?.message ?? "");
+        const friendly = /quota|429|rate.?limit|resource_exhausted/i.test(raw)
+          ? `${chat.label} hit its provider's rate limit/quota (common on Gemini Pro's free tier). Try Gemini Flash, switch to Claude, or upgrade your Google plan.`
+          : `${chat.label} couldn't respond just now — try again, or switch models.`;
+        if (!text) { text = friendly; sendEvent(res, { content: friendly }); }
+        else { text += `\n\n[${friendly}]`; sendEvent(res, { content: `\n\n[${friendly}]` }); }
+      }
       const orchMsg = await saveOrchestratorMessage(text || "No response generated.", []);
       sendEvent(res, { done: true, userMessageId: userMsg.id, messageId: orchMsg.id, agentActions: [] });
       res.end();
