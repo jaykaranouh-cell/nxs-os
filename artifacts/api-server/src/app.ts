@@ -8,6 +8,7 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import { authGuard } from "./middlewares/auth";
 import { GENERATED_DIR } from "./lib/higgsfield";
+import { UPLOADS_DIR } from "./lib/uploads";
 
 const app: Express = express();
 
@@ -31,8 +32,9 @@ app.use(
   }),
 );
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Larger limit so chat can carry base64 image/PDF attachments.
+app.use(express.json({ limit: "40mb" }));
+app.use(express.urlencoded({ extended: true, limit: "40mb" }));
 
 // LLM-backed chat is the expensive surface — cap it independently.
 const chatLimiter = rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: true, legacyHeaders: false });
@@ -46,6 +48,9 @@ app.use("/api", authGuard, router);
 // can load them; filenames are randomised.
 fs.mkdirSync(GENERATED_DIR, { recursive: true });
 app.use("/generated", express.static(GENERATED_DIR));
+// User uploads (documents/photos sent to Maya), served for chat history display.
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+app.use("/uploads", express.static(UPLOADS_DIR));
 
 // Production: serve the built frontend so the whole OS lives on one port.
 // In dev (no dist present) this is a no-op and Vite serves the frontend.

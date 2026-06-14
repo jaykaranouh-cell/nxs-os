@@ -19,7 +19,7 @@ import {
   Bot, Send, User, BrainCircuit, Loader2, Activity, Zap, Bell, Lock,
   Shield, AlertTriangle, Brain, Compass, Lightbulb, Target, Network,
   ChevronRight, ArrowRight, Database, BookOpen, CheckSquare, Plus,
-  Volume2, VolumeX, Mic, Square, MessageSquare
+  Volume2, VolumeX, Mic, Square, MessageSquare, Paperclip, FileText, X
 } from "lucide-react";
 import { ContextIntakeModal } from "@/components/ContextIntakeModal";
 import { authHeaders } from "@/lib/auth";
@@ -282,6 +282,39 @@ function AgentActions({ json }: { json: string }) {
   );
 }
 
+// ─── Attachments ───────────────────────────────────────────────────────────────
+
+type PendingFile = { kind: "image" | "pdf" | "text"; mediaType: string; data: string; name: string; previewUrl?: string };
+type Attachment = { type: "image" | "pdf" | "text"; name: string; url?: string; previewUrl?: string; mediaType?: string };
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(",")[1] ?? "");
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+function AttachmentView({ items }: { items?: Attachment[] | null }) {
+  if (!items?.length) return null;
+  return (
+    <div className="flex flex-wrap gap-2 mt-2">
+      {items.map((a, i) => {
+        const src = a.previewUrl ?? a.url;
+        if (a.type === "image" && src)
+          return <img key={i} src={src} alt={a.name} className="h-28 max-w-[12rem] object-cover rounded-lg border border-white/15" />;
+        return (
+          <a key={i} href={a.url} target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-lg border border-white/15 bg-white/5 text-white/70 hover:text-white hover:border-white/30 max-w-[14rem]">
+            <FileText className="h-3.5 w-3.5 flex-shrink-0 text-primary/70" /> <span className="truncate">{a.name}</span>
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function Orchestrator() {
   const [input, setInput] = useState("");
   const [execLevel, setExecLevel] = useState<ExecLevel>("amber");
@@ -289,6 +322,9 @@ export default function Orchestrator() {
   const { data: messages, isLoading } = useListChatMessages({ limit: 50 });
   const { data: briefing } = useGetMemoryBriefing();
   const [localUserMessage, setLocalUserMessage] = useState<string | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+  const [localAttachments, setLocalAttachments] = useState<Attachment[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [streamingContent, setStreamingContent] = useState<string>("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [consulting, setConsulting] = useState<Array<{ name: string; done: boolean }>>([]);
@@ -340,6 +376,7 @@ export default function Orchestrator() {
       lastMessageId.current = newestId;
       setStreamingContent("");
       setLocalUserMessage(null);
+      setLocalAttachments([]);
     }
   }, [messages]);
 
@@ -393,10 +430,11 @@ export default function Orchestrator() {
     } catch {}
   }
 
-  async function streamMessage(message: string) {
+  async function streamMessage(message: string, files: PendingFile[] = []) {
     const msg = message.trim();
-    if (!msg || isStreaming) return;
-    setLocalUserMessage(msg);
+    if ((!msg && files.length === 0) || isStreaming) return;
+    setLocalUserMessage(msg || "(attachment)");
+    setLocalAttachments(files.map((f) => ({ type: f.kind, name: f.name, previewUrl: f.previewUrl })));
     setIsStreaming(true);
     setStreamingContent("");
     setConsulting([]);
@@ -405,7 +443,11 @@ export default function Orchestrator() {
       const resp = await fetch("/api/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ content: msg, executionLevel: execLevel }),
+        body: JSON.stringify({
+          content: msg,
+          executionLevel: execLevel,
+          attachments: files.map((f) => ({ kind: f.kind, mediaType: f.mediaType, data: f.data, name: f.name })),
+        }),
       });
       if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`);
       const reader = resp.body.getReader();
@@ -443,6 +485,7 @@ export default function Orchestrator() {
               // optimistic user bubble lingers and appears duplicated.
               await queryClient.invalidateQueries({ queryKey: getListChatMessagesQueryKey({ limit: 50 }) });
               setLocalUserMessage(null);
+              setLocalAttachments([]);
               setStreamingContent("");
               if (voiceOnRef.current && fullText) void speakMessage("live", fullText);
               break outer;
@@ -454,6 +497,7 @@ export default function Orchestrator() {
       console.error("Stream error:", err);
       await queryClient.invalidateQueries({ queryKey: getListChatMessagesQueryKey({ limit: 50 }) });
       setLocalUserMessage(null);
+      setLocalAttachments([]);
       setStreamingContent("");
     } finally {
       setIsStreaming(false);
@@ -463,11 +507,32 @@ export default function Orchestrator() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isStreaming) return;
+    if ((!input.trim() && pendingFiles.length === 0) || isStreaming) return;
     const msg = input;
+    const files = pendingFiles;
     setInput("");
-    void streamMessage(msg);
+    setPendingFiles([]);
+    void streamMessage(msg, files);
   };
+
+  async function onFilesSelected(list: FileList | null) {
+    if (!list) return;
+    for (const f of Array.from(list).slice(0, 6)) {
+      const isImg = f.type.startsWith("image/");
+      const isPdf = f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+      const isText = f.type.startsWith("text/") || /\.(txt|md|csv|json)$/i.test(f.name);
+      const kind: PendingFile["kind"] | null = isImg ? "image" : isPdf ? "pdf" : isText ? "text" : null;
+      if (!kind) continue;
+      try {
+        const data = await fileToBase64(f);
+        setPendingFiles((p) => [
+          ...p,
+          { kind, mediaType: f.type || (kind === "pdf" ? "application/pdf" : "text/plain"), data, name: f.name,
+            previewUrl: isImg ? `data:${f.type};base64,${data}` : undefined },
+        ]);
+      } catch { /* skip unreadable file */ }
+    }
+  }
 
   function sendQuick(prompt: string) {
     if (isStreaming) return;
@@ -639,6 +704,7 @@ export default function Orchestrator() {
                         </button>
                       )}
                     </div>
+                    {msg.role === "user" && <AttachmentView items={(msg as { attachments?: Attachment[] }).attachments} />}
                     {msg.agentActions && <AgentActions json={msg.agentActions} />}
                   </div>
                 </div>
@@ -651,6 +717,7 @@ export default function Orchestrator() {
                 </Avatar>
                 <div className="px-3 sm:px-4 py-3 rounded-2xl shadow-md bg-accent/10 border-accent/20 border min-w-0">
                   <p className="text-sm leading-relaxed">{localUserMessage}</p>
+                  <AttachmentView items={localAttachments} />
                 </div>
               </div>
             )}
@@ -726,7 +793,33 @@ export default function Orchestrator() {
 
         {/* Input */}
         <div className="p-3 sm:p-4 bg-card/80 border-t border-border/50 flex-shrink-0">
+          {/* Pending attachments preview */}
+          {pendingFiles.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-2">
+              {pendingFiles.map((f, i) => (
+                <div key={i} className="relative group flex items-center gap-1.5 text-[11px] pl-1 pr-2 py-1 rounded-lg border border-primary/25 bg-primary/5 text-white/70">
+                  {f.previewUrl
+                    ? <img src={f.previewUrl} alt={f.name} className="h-7 w-7 object-cover rounded" />
+                    : <FileText className="h-4 w-4 text-primary/70 ml-1" />}
+                  <span className="truncate max-w-[120px]">{f.name}</span>
+                  <button type="button" onClick={() => setPendingFiles((p) => p.filter((_, j) => j !== i))}
+                    className="text-white/40 hover:text-red-400"><X className="h-3 w-3" /></button>
+                </div>
+              ))}
+            </div>
+          )}
+          <input ref={fileInputRef} type="file" multiple accept="image/*,application/pdf,text/*,.txt,.md,.csv,.json"
+            className="hidden" onChange={(e) => { void onFilesSelected(e.target.files); e.target.value = ""; }} />
           <form onSubmit={handleSubmit} className="relative flex items-center gap-2">
+            <Button
+              type="button" size="icon" variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isStreaming}
+              title="Attach a document or photo for Maya to read"
+              className="h-11 w-11 rounded-xl flex-shrink-0 border-border/50 text-white/40 hover:text-primary hover:border-primary/50"
+            >
+              <Paperclip className="h-4 w-4" />
+            </Button>
             <Button
               type="button"
               size="icon"
@@ -751,7 +844,7 @@ export default function Orchestrator() {
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={isRecording ? "Listening…" : isTranscribing ? "Transcribing…" : "Ask Maya anything..."}
+              placeholder={isRecording ? "Listening…" : isTranscribing ? "Transcribing…" : pendingFiles.length ? "Add a note, or just send…" : "Ask Maya anything..."}
               className="pr-12 bg-background border-primary/30 focus-visible:ring-primary/50 shadow-inner h-11 rounded-xl text-sm"
               disabled={isStreaming}
             />
@@ -759,7 +852,7 @@ export default function Orchestrator() {
               type="submit"
               size="icon"
               className="absolute right-1.5 h-8 w-8 rounded-lg bg-primary hover:bg-primary/80 text-primary-foreground"
-              disabled={!input.trim() || isStreaming}
+              disabled={(!input.trim() && pendingFiles.length === 0) || isStreaming}
             >
               <Send className="h-3.5 w-3.5" />
             </Button>

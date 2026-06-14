@@ -7,6 +7,7 @@ export const chatMessagesTable = pgTable("chat_messages", {
   role: text("role").notNull(),
   content: text("content").notNull(),
   agentActions: text("agent_actions"),
+  attachments: text("attachments"), // JSON: [{ type, name, url, mediaType }]
   timestamp: timestamp("timestamp").defaultNow().notNull(),
 });
 

@@ -24,6 +24,7 @@ import {
   type ToolEvent,
 } from "../lib/orchestrator/tools";
 import { recordUsage } from "../lib/orchestrator/telemetry";
+import { saveAttachment, type IncomingAttachment, type StoredAttachment } from "../lib/uploads";
 import { assertWithinBudget, BudgetExceededError } from "../lib/orchestrator/budget";
 import { captureMemoryFromTurn } from "../lib/orchestrator/capture";
 import { loadConversationSummary, maybeCompactConversation } from "../lib/orchestrator/compaction";
@@ -69,18 +70,38 @@ async function setupTurn(content: string, userMsgId: number): Promise<TurnSetup>
  * Synthesis with a tool-use loop. Streams text via onText, reports executed
  * actions via onAction, and returns the final text plus all tool events.
  */
+/** Turn uploaded attachments into Claude content blocks. */
+function attachmentBlocks(atts: IncomingAttachment[]): Anthropic.ContentBlockParam[] {
+  const blocks: Anthropic.ContentBlockParam[] = [];
+  for (const a of atts) {
+    if (a.kind === "image") {
+      blocks.push({ type: "image", source: { type: "base64", media_type: a.mediaType as "image/png", data: a.data } });
+    } else if (a.kind === "pdf") {
+      blocks.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: a.data } });
+    } else {
+      const text = Buffer.from(a.data, "base64").toString("utf8").slice(0, 200_000);
+      blocks.push({ type: "text", text: `Attached file "${a.name}":\n\n${text}` });
+    }
+  }
+  return blocks;
+}
+
 export async function runSynthesis(opts: {
   system: ReturnType<typeof buildSystemBlocks>;
   history: ChatHistory;
   content: string;
   tools: typeof TOOL_DEFINITIONS;
   scope?: string;
+  attachments?: IncomingAttachment[];
   onText?: (delta: string) => void;
   onAction?: (event: ToolEvent & { error?: boolean }) => void;
 }): Promise<{ text: string; toolEvents: ToolEvent[] }> {
+  const userContent: Anthropic.MessageParam["content"] = opts.attachments?.length
+    ? [...attachmentBlocks(opts.attachments), { type: "text", text: opts.content }]
+    : opts.content;
   const messages: Anthropic.MessageParam[] = [
     ...opts.history,
-    { role: "user", content: opts.content },
+    { role: "user", content: userContent },
   ];
   const toolEvents: ToolEvent[] = [];
   let text = "";
@@ -230,18 +251,39 @@ router.post("/chat/messages", async (req, res) => {
   });
 });
 
+/** Read + sanitise attachments from a chat request body (max 6). */
+function parseIncomingAttachments(body: unknown): IncomingAttachment[] {
+  const raw = (body as { attachments?: unknown })?.attachments;
+  if (!Array.isArray(raw)) return [];
+  const out: IncomingAttachment[] = [];
+  for (const a of raw.slice(0, 6)) {
+    if (!a || typeof a.data !== "string" || typeof a.mediaType !== "string") continue;
+    const kind: IncomingAttachment["kind"] = a.kind === "pdf" || a.kind === "text" ? a.kind : "image";
+    out.push({ kind, mediaType: a.mediaType, data: a.data, name: typeof a.name === "string" ? a.name : "file" });
+  }
+  return out;
+}
+
 router.post("/chat/stream", async (req, res) => {
-  const parsed = SendChatMessageBody.safeParse(req.body);
-  if (!parsed.success) {
+  // Attachments (images / PDFs / text) are validated manually so an upload can
+  // accompany an empty caption.
+  const incoming = parseIncomingAttachments(req.body);
+  const rawContent = typeof req.body?.content === "string" ? req.body.content.trim() : "";
+  const content = rawContent || (incoming.length ? "Take a look at the attached file(s)." : "");
+  if (!content) {
     res.status(400).json({ error: "Invalid message" });
     return;
   }
-  const { content } = parsed.data;
-  const level = parseLevel(parsed.data.executionLevel);
+  const level = parseLevel(typeof req.body?.executionLevel === "string" ? req.body.executionLevel : undefined);
+
+  const stored: StoredAttachment[] = [];
+  for (const a of incoming) {
+    try { stored.push(await saveAttachment(a)); } catch { /* skip a bad upload */ }
+  }
 
   const [userMsg] = await db
     .insert(chatMessagesTable)
-    .values({ role: "user", content })
+    .values({ role: "user", content, attachments: stored.length ? JSON.stringify(stored) : null })
     .returning();
 
   res.setHeader("Content-Type", "text/event-stream");
@@ -282,6 +324,7 @@ router.post("/chat/stream", async (req, res) => {
       history,
       content,
       tools,
+      attachments: incoming,
       onText: (delta) => sendEvent(res, { content: delta }),
       onAction: (event) => sendEvent(res, { action: event }),
     });
@@ -345,7 +388,9 @@ function violationActions(): AgentAction[] {
 }
 
 function serializeMessage(msg: typeof chatMessagesTable.$inferSelect) {
-  return { ...msg, timestamp: msg.timestamp.toISOString() };
+  let attachments: StoredAttachment[] | null = null;
+  if (msg.attachments) { try { attachments = JSON.parse(msg.attachments) as StoredAttachment[]; } catch { /* ignore */ } }
+  return { ...msg, attachments, timestamp: msg.timestamp.toISOString() };
 }
 
 export default router;
